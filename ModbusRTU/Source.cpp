@@ -142,7 +142,7 @@ long* readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 byte
 int main(void)
 {
 	requestSingle test;
-	request_Read(&test, 1, 4, 0, 20);
+	request_Read(&test, 1, 4, 0, 20);		//read input registers: first 20 clusters from address "0"
 
 	HANDLE hComm;       //port handle
 	COMSTAT comstat;    //structure of the current state of the port, in this program is used to determine
