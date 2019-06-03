@@ -1,1 +1,5 @@
-﻿
+﻿  Source.cpp
+c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.cpp(94): warning C4018: <: несоответствие типов со знаком и без знака
+c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.cpp(133): warning C4018: <=: несоответствие типов со знаком и без знака
+c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.cpp(242): warning C4018: <=: несоответствие типов со знаком и без знака
+  ModbusRTU.vcxproj -> C:\Users\kodolich_da\Source\Repos\Siinthd\Modbus_RTU\x64\Debug\ModbusRTU.exe

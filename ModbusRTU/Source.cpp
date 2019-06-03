@@ -80,7 +80,7 @@ void request_WRITE(requestSingle* send, int ID, int function, int address, int v
 	send->Slave_code[4] = value >> 8;
 	send->Slave_code[5] = value & 0x00ff;
 	//CRC
-	unsigned int CRC = ModRTU_CRC(send->Slave_code, 6); //2 байта
+	unsigned int CRC = ModRTU_CRC(send->Slave_code, 6); //2 bytes
 
 	send->Slave_code[6] = CRC;
 	send->Slave_code[7] = CRC >> 8;
@@ -155,7 +155,7 @@ int main(void)
 		0,
 		NULL,
 		OPEN_EXISTING,
-		0, //для Modbus ставить FILE_FLAG_OVERLAPPED // для теста 0
+		0, //для Modbus ставить FILE_FLAG_OVERLAPPED для теста 0
 		NULL);
 	if (hComm == INVALID_HANDLE_VALUE)
 	{
@@ -188,7 +188,7 @@ int main(void)
 
 	do
 	{
-		WriteFile(hComm, &test, sizeof(test), &bytesWritten, NULL); //&overlappedwr
+		WriteFile(hComm, &test, sizeof(test), &bytesWritten, NULL);
 		printPackage(&test, bytesWritten, 0);
 
 		SetCommMask(hComm, EV_RXCHAR);
@@ -201,7 +201,7 @@ int main(void)
 			bytesRead = comstat.cbInQue;
 			if (bytesRead)
 			{
-				ReadFile(hComm, buf, bytesRead, &temp, NULL); //для модбаса oEventHandler
+				ReadFile(hComm, buf, bytesRead, &temp, NULL);
 				if (temp < 1)
 				{
 					printf("\nA timeout occured.\n");
@@ -214,8 +214,6 @@ int main(void)
 				printf("%02X %02X\n\n", (byte)ModRTU_CRC((byte*)buf, bytesRead - 2), (byte)(ModRTU_CRC((byte*)buf, bytesRead - 2) >> 8));
 
 
-				//float test[response_lenght/4] = {0};            //Convert to inverse Float IEEE 754
-
 				int* bus = (int*)malloc((response_lenght / 2) * sizeof(int));
 				float* test = (float*)malloc((response_lenght / 4) * sizeof(float));
 				long* rdLng = (long*)malloc((response_lenght / 4) * sizeof(long));
@@ -227,29 +225,25 @@ int main(void)
 				rdDbl = readDouble(buf, response_lenght);
 
 
-				printf("\n\n Hex:\t\tIntegers:");                                 //Convert to INT
+				printf("\n\n Hex:\t\tIntegers:");  
 				for (unsigned int i = 3, j = 0; i < bytesRead - 2; i += 2, j++)
 				{
-					//bus[j] = ((byte)buf[i]<<8) | (byte)buf[i+1];
 					printf("\n%04X\t\t%d", bus[j], bus[j]);
 				}
 
-				printf("\n\n\n Inverse Floats:");                             //Convert to Float
+				printf("\n\n\n Inverse Floats:");            
 				for (int i = 0; i < (response_lenght / 4) - 1; i++)
 					printf("\n%f", test[i]);
 
-				printf("\n\n\n Hex(long):\t\t long:");                          //Convert to long
+				printf("\n\n\n Hex(long):\t\t long:");       
 				for (unsigned int i = 3, j = 0; j <= (response_lenght / 4) - 1; i += 4, j++)
 				{
-					//rdLng[j] = ((byte)buf[i]<<24 | (byte)buf[i+1]<<16 | (byte)buf[i+2]<<8 | (byte)buf[i+3]);
 					printf("\n%08X\t\t%ld", rdLng[j], rdLng[j]);
 				}
 
-				printf("\n\n\n double:");                          //Convert to long
+				printf("\n\n\n double:");
 				for (int i = 0; i < (response_lenght / 8); i++)
 					printf("\n%e", rdDbl[i]);
-
-				// printf("\n%d %d",ModRTU_CRC((byte*)buf,bytesRead-2)&0x000000FF,ModRTU_CRC((byte*)buf,bytesRead-2)>>8);
 
 																	  //Free memory
 				free(rdDbl);
