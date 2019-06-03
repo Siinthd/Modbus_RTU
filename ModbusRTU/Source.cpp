@@ -47,36 +47,38 @@ uint16_t ModRTU_CRC(byte* buf, int len)
 	return crc;
 }
 
-//------------запрос: 0x01 - 0x04
+//------------request: 0x01 - 0x04
 
 void request_Read(requestSingle* send, int ID, int function, int address, int value)
 {
-	//адрес устройства
+	//device address
 	send->Slave_code[0] = ID;
-	//функциональный код
+	//functional code
 	send->Slave_code[1] = function;
-	//адрес первого регистра HI-Lo //2 байта
+	//1 register address HI-Lo //2 bytes
 	send->Slave_code[2] = address >> 8;
 	send->Slave_code[3] = address & 0x00ff;
-	//количество регистров Hi-Lo //2 байта
+	//number of registers Hi-Lo //2 байта
 	send->Slave_code[4] = value >> 8;
 	send->Slave_code[5] = value & 0x00ff;
 	//CRC
-	unsigned int CRC = ModRTU_CRC(send->Slave_code, 6); //2 байта
+	unsigned int CRC = ModRTU_CRC(send->Slave_code, 6); //2 bytes
 
 	send->Slave_code[6] = CRC;
 	send->Slave_code[7] = CRC >> 8;
 }
 
+
+//------------request: 0x01 - 0x04 (draft)
 void request_WRITE(requestSingle* send, int ID, int function, int address, int value)
 {
 	send->Slave_code[0] = ID;
-	//функциональный код
+	//functional code
 	send->Slave_code[1] = function;
-	//адрес первого регистра HI-Lo
+	//1 register address HI-Lo //2 bytes
 	send->Slave_code[2] = address >> 8;
 	send->Slave_code[3] = address & 0x00ff;
-	//Значение Hi-Lo байт
+	//value Hi-Lo byte
 	send->Slave_code[4] = value >> 8;
 	send->Slave_code[5] = value & 0x00ff;
 	//CRC
@@ -142,9 +144,9 @@ int main(void)
 	requestSingle test;
 	request_Read(&test, 1, 4, 0, 20);
 
-	HANDLE hComm;       //дескриптор порта
-	COMSTAT comstat;    //структура текущего состояния порта, в данной программе используется для определения
-						//количества принятых в порт байтов
+	HANDLE hComm;       //port handle
+	COMSTAT comstat;    //structure of the current state of the port, in this program is used to determine
+						//the number of bytes received at the port
 	const char* pcComPort = "\\\\.\\COM6";
 	DCB dcb;
 	DWORD bytesRead, dwEventMask, bytesWritten, temp;
@@ -155,7 +157,7 @@ int main(void)
 		0,
 		NULL,
 		OPEN_EXISTING,
-		0, //для Modbus ставить FILE_FLAG_OVERLAPPED для теста 0
+		0, //for Modbus set FILE_FLAG_OVERLAPPED, for tests 0
 		NULL);
 	if (hComm == INVALID_HANDLE_VALUE)
 	{
@@ -185,7 +187,7 @@ int main(void)
 
 
 	printf("%s baud rate is %d\n", pcComPort, (int)dcb.BaudRate);
-
+												//synchronous connect
 	do
 	{
 		WriteFile(hComm, &test, sizeof(test), &bytesWritten, NULL);
@@ -245,7 +247,7 @@ int main(void)
 				for (int i = 0; i < (response_lenght / 8); i++)
 					printf("\n%e", rdDbl[i]);
 
-																	  //Free memory
+													//Free memory
 				free(rdDbl);
 				rdDbl = NULL;
 				free(rdLng);
@@ -256,7 +258,7 @@ int main(void)
 				test = NULL;
 			}
 		}
-		//Purge port and buffer
+													//Purge port and buffer
 		PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
 		memset(buf, 0, sizeof(buf));
 
