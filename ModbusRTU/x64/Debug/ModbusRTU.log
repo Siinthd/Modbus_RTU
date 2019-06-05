@@ -1,28 +1,5 @@
-﻿  Source.c
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(11): error C2143: синтаксическая ошибка: отсутствие ")" перед "*"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(11): error C2143: синтаксическая ошибка: отсутствие "{" перед "*"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(11): error C2059: синтаксическая ошибка: тип
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(11): error C2059: синтаксическая ошибка: )
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(50): error C2143: синтаксическая ошибка: отсутствие ")" перед "*"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(50): error C2143: синтаксическая ошибка: отсутствие "{" перед "*"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(50): error C2365: send: переопределение; предыдущим определением было "функция"
-  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\winsock.h(815): note:  см. объявление "send"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(50): error C2059: синтаксическая ошибка: тип
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(50): error C2059: синтаксическая ошибка: )
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(71): error C2143: синтаксическая ошибка: отсутствие ")" перед "*"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(71): error C2143: синтаксическая ошибка: отсутствие "{" перед "*"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(71): error C2365: send: переопределение; предыдущим определением было "функция"
-  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\winsock.h(815): note:  см. объявление "send"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(71): error C2059: синтаксическая ошибка: тип
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(71): error C2059: синтаксическая ошибка: )
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(99): warning C4018: <: несоответствие типов со знаком и без знака
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(138): warning C4018: <=: несоответствие типов со знаком и без знака
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(147): error C2065: requestSingle: необъявленный идентификатор
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(147): error C2146: синтаксическая ошибка: отсутствие ";" перед идентификатором "test"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(147): error C2065: test: необъявленный идентификатор
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(148): warning C4013: request_Read: нет определения; предполагается "extern" с возвратом типа "int"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(148): error C2065: test: необъявленный идентификатор
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(196): error C2065: test: необъявленный идентификатор
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(197): error C2065: test: необъявленный идентификатор
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(197): warning C4133: функция: несовместимые типы - из "int *" в "char *"
-c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.c(244): warning C4018: <=: несоответствие типов со знаком и без знака
+﻿  Source.cpp
+c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.cpp(106): warning C4018: <: несоответствие типов со знаком и без знака
+c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.cpp(145): warning C4018: <=: несоответствие типов со знаком и без знака
+c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.cpp(210): warning C4018: <=: несоответствие типов со знаком и без знака
+  ModbusRTU.vcxproj -> C:\Users\kodolich_da\Source\Repos\Siinthd\Modbus_RTU\x64\Debug\ModbusRTU.exe
