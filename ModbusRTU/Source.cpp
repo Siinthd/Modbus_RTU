@@ -1,8 +1,6 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <iostream>
-#include <iomanip>
 #include <math.h>
 #include <malloc.h>
 
@@ -86,6 +84,30 @@ void request_WRITE(requestSingle* send, int ID, int function, int address, int v
 
 	send->Slave_code[6] = CRC;
 	send->Slave_code[7] = CRC >> 8;
+}
+									//convert byte into digital value array
+void readBinary(char* number, int response_lenght)
+{
+	int *arr = (int*)malloc(response_lenght * 8 * sizeof(int));
+
+	for (int j = 0; j < response_lenght; j++)
+	{
+		for (int i = 7, k = 0; i >= 0; i--, k++) {
+			if ((number[j] & (1 << i)) != 0) {
+				arr[j * 8 + k] = 1;
+			}
+			else {
+				arr[j * 8 + k] = 0;
+			}
+		}
+		printf("\n");
+	}
+
+	for (int i = 0; i < response_lenght; i++) {
+		for (int j = 0; j < 8; j++)
+			printf("%d", arr[i * 8 + j]);
+		printf("\n");
+	}
 }
 
 
