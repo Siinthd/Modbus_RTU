@@ -155,94 +155,92 @@ bool ReadInputStatus()
 	requestSingle request;
 	DWORD bytesRead, dwEventMask, bytesWritten, temp;
 
+	int* bus;
+	float* test;
+	long* rdLng;
+	double* rdDbl;
+
 	request_Read(&request, 1, 4, 0, 20);
 	PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
+	//test loop
+	while (1) {
 
-	if (!WriteFile(hComm, &request, sizeof(request), &bytesWritten, NULL)) {
-		perror("error: ");
-		return FALSE;
-	}
-	printPackage(&request, bytesWritten, 0);
-	SetCommMask(hComm, EV_RXCHAR);
-	WaitCommEvent(hComm, &dwEventMask, NULL);
-
-	Sleep(500);
-
-	if ((dwEventMask & EV_RXCHAR) != 0)
-	{
-		ClearCommError(hComm, NULL, &comstat);
-		bytesRead = comstat.cbInQue;
-		if (bytesRead)
-		{
-			if (!ReadFile(hComm, buf, bytesRead, &temp, NULL))
-			{
-				printf("\nA timeout occured.\n");
-			}
-			printPackage(buf, bytesRead, 1);
-			int response_lenght = buf[2];
-
-			printf("\nCRC sum:\n");
-			printf("%02X %02X\n\n", (byte)ModRTU_CRC((byte*)buf, bytesRead - 2), (byte)(ModRTU_CRC((byte*)buf, bytesRead - 2) >> 8));
-
-
-			int* bus = (int*)malloc((response_lenght / 2) * sizeof(int));
-			float* test = (float*)malloc((response_lenght / 4) * sizeof(float));
-			long* rdLng = (long*)malloc((response_lenght / 4) * sizeof(long));
-			double* rdDbl = (double*)malloc((response_lenght / 8) * sizeof(double));
-
-			bus = readInt(buf, bytesRead);
-			test = readInverseFloat(buf, response_lenght);
-			rdLng = readLong(buf, response_lenght);
-			rdDbl = readDouble(buf, response_lenght);
-
-
-			printf("\n\n Hex:\t\tIntegers:");
-			for (unsigned int i = 3, j = 0; i < bytesRead - 2; i += 2, j++)
-			{
-				printf("\n%04X\t\t%d", bus[j], bus[j]);
-			}
-
-			printf("\n\n\n Inverse Floats:");
-			for (int i = 0; i < (response_lenght / 4) - 1; i++)
-				printf("\n%f", test[i]);
-
-			printf("\n\n\n Hex(long):\t\t long:");
-			for (unsigned int i = 3, j = 0; j <= (response_lenght / 4) - 1; i += 4, j++)
-			{
-				printf("\n%08X\t\t%ld", rdLng[j], rdLng[j]);
-			}
-
-			printf("\n\n\n double:");
-			for (int i = 0; i < (response_lenght / 8); i++)
-				printf("\n%e", rdDbl[i]);
-
-			//Free memory
-			free(rdDbl);
-			rdDbl = NULL;
-			free(rdLng);
-			rdLng = NULL;
-			free(bus);
-			bus = NULL;
-			free(test);
-			test = NULL;
-
+		if (!WriteFile(hComm, &request, sizeof(request), &bytesWritten, NULL)) {
+			perror("error: ");
+			return FALSE;
 		}
-	}
+		printPackage(&request, bytesWritten, 0);
+		SetCommMask(hComm, EV_RXCHAR);
+		WaitCommEvent(hComm, &dwEventMask, NULL);
 
+		Sleep(500);
+
+		if ((dwEventMask & EV_RXCHAR) != 0)
+		{
+			ClearCommError(hComm, NULL, &comstat);
+			bytesRead = comstat.cbInQue;
+			if (bytesRead)
+			{
+				if (!ReadFile(hComm, buf, bytesRead, &temp, NULL))
+				{
+					printf("\nA timeout occured.\n");
+				}
+				printPackage(buf, bytesRead, 1);
+				int response_lenght = buf[2];
+
+				printf("\nCRC sum:\n");
+				printf("%02X %02X\n\n", (byte)ModRTU_CRC((byte*)buf, bytesRead - 2), (byte)(ModRTU_CRC((byte*)buf, bytesRead - 2) >> 8));
+
+				bus = readInt(buf, bytesRead);
+				test = readInverseFloat(buf, response_lenght); // responce_lenght possible vulnerability
+				rdLng = readLong(buf, response_lenght);
+				rdDbl = readDouble(buf, response_lenght);
+
+
+				printf("\n\n Hex:\t\tIntegers:");
+				for (unsigned int i = 3, j = 0; i < bytesRead - 2; i += 2, j++)
+				{
+					printf("\n%04X\t\t%d", bus[j], bus[j]);
+				}
+
+				printf("\n\n\n Inverse Floats:");
+				for (int i = 0; i < (response_lenght / 4) - 1; i++)
+					printf("\n%f", test[i]);
+
+				printf("\n\n\n Hex(long):\t\t long:");
+				for (unsigned int i = 3, j = 0; j <= (response_lenght / 4) - 1; i += 4, j++)
+				{
+					printf("\n%08X\t\t%ld", rdLng[j], rdLng[j]);
+				}
+
+				printf("\n\n\n double:");
+				for (int i = 0; i < (response_lenght / 8); i++)
+					printf("\n%e", rdDbl[i]);
+				//Free memory
+				free(rdDbl);
+				free(rdLng);
+				free(bus);
+				free(test);
+			}
+		}
+		PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
+		memset(buf, 0, sizeof(buf));
+		getchar();
+	}
 	return TRUE;
 }
 bool ReadHoldingRegisters();
 bool ReadInputRegisters();
 
 
-bool OpenPort(/*int baudrate, int bytesize, int parity, int stopbits*/)
+bool OpenPort()
 {
 	hComm = CreateFile(pcComPort,
 		GENERIC_READ | GENERIC_WRITE,
 		0,
 		NULL,
 		OPEN_EXISTING,
-		0, //для Modbus ставить FILE_FLAG_OVERLAPPED // для теста 0
+		0, 
 		NULL);
 	if (hComm != INVALID_HANDLE_VALUE)
 	{
