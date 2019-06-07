@@ -149,10 +149,7 @@ long* readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 byte
 	return rdLng;
 }
 
-bool ReadCoilStatus()
-{
-
-}
+bool ReadCoilStatus();
 bool ReadInputStatus()
 {
     char buf[128] = {0};
