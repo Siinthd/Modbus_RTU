@@ -5,6 +5,8 @@
 #include <math.h>
 #include <malloc.h>
 #include <assert.h>
+#include <conio.h>
+
 
 struct requestSingle {
 	byte Slave_code[8];
@@ -12,12 +14,13 @@ struct requestSingle {
 
 HANDLE hComm;       //дескриптор порта
 COMSTAT comstat;    //структура текущего состояния порта, в данной программе используется для определения
-                    //количества принятых в порт байтов
+					//количества принятых в порт байтов
 COMMTIMEOUTS timeouts;
 const char* pcComPort = "\\\\.\\COM15";
 DCB dcb;
 
-                                    //overload debug info
+
+//overload debug info
 void printPackage(requestSingle* data, int size, int isin)
 {
 	printf("%s bytes: %d\n\r\t", (isin) ? "Received" : "Sent", size);
@@ -37,44 +40,83 @@ void printPackage(char* data, int size, int isin)
 
 uint16_t ModRTU_CRC(byte* buf, int len)
 {
-  uint16_t crc = 0xFFFF;
+	uint16_t crc = 0xFFFF;
 
-  for (int pos = 0; pos < len; pos++) {
-    crc ^= (uint16_t)buf[pos];          // XOR byte into least sig. byte of crc
+	for (int pos = 0; pos < len; pos++) {
+		crc ^= (uint16_t)buf[pos];          // XOR byte into least sig. byte of crc
 
-    for (int i = 8; i != 0; i--) {    // Loop over each bit
-      if ((crc & 0x0001) != 0) {      // If the LSB is set
-        crc >>= 1;                    // Shift right and XOR 0xA001
-        crc ^= 0xA001;
-      }
-      else                            // Else LSB is not set
-        crc >>= 1;                    // Just shift right
-    }
-  }
-  // Note, this number has low and high bytes swapped, so use it accordingly (or swap bytes)
-  return crc;
+		for (int i = 8; i != 0; i--) {    // Loop over each bit
+			if ((crc & 0x0001) != 0) {      // If the LSB is set
+				crc >>= 1;                    // Shift right and XOR 0xA001
+				crc ^= 0xA001;
+			}
+			else                            // Else LSB is not set
+				crc >>= 1;                    // Just shift right
+		}
+	}
+	// Note, this number has low and high bytes swapped, so use it accordingly (or swap bytes)
+	return crc;
 }
 
-void request_Read(requestSingle* send,int ID,int function,int address,int value)
+void request_Read(requestSingle* send, int ID, int function, int address, int value)
 {
-                                                            //адрес устройства
-  send->Slave_code[0] = ID;
-                                                            //функциональный код
-  send->Slave_code[1] = function;
-                                                            //адрес первого регистра HI-Lo //2 байта
-  send->Slave_code[2] = address >> 8;
-  send->Slave_code[3] = address & 0x00ff;
-                                                            //количество регистров Hi-Lo //2 байта
-  send->Slave_code[4] = value >> 8;
-  send->Slave_code[5] = value & 0x00ff;
-                                                            //CRC
-  unsigned int CRC = ModRTU_CRC(send->Slave_code,6); //2 байта
+	//адрес устройства
+	send->Slave_code[0] = ID;
+	//функциональный код
+	send->Slave_code[1] = function;
+	//адрес первого регистра HI-Lo //2 байта
+	send->Slave_code[2] = address >> 8;
+	send->Slave_code[3] = address & 0x00ff;
+	//количество регистров Hi-Lo //2 байта
+	send->Slave_code[4] = value >> 8;
+	send->Slave_code[5] = value & 0x00ff;
+	//CRC
+	unsigned int CRC = ModRTU_CRC(send->Slave_code, 6); //2 байта
 
-  send->Slave_code[6] = CRC;
-  send->Slave_code[7] = CRC >> 8;
+	send->Slave_code[6] = CRC;
+	send->Slave_code[7] = CRC >> 8;
 
 }
-									//convert byte into digital value array
+
+DWORD nb_read_impl(char* buf, requestSingle request)
+{
+	DWORD bytesRead, dwEventMask, bytesWritten, temp;
+
+	PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
+	//test loop
+
+	if (!WriteFile(hComm, &request, sizeof(request), &bytesWritten, NULL)) {
+		perror("error: ");
+		return FALSE;
+	}
+	printPackage(&request, bytesWritten, 0);
+
+	SetCommMask(hComm, EV_RXCHAR);
+
+	WaitCommEvent(hComm, &dwEventMask, NULL);
+
+	Sleep(50);
+
+	if ((dwEventMask & EV_RXCHAR) != 0)
+	{
+
+		ClearCommError(hComm, NULL, &comstat);
+		bytesRead = comstat.cbInQue;
+		if (bytesRead)
+		{
+			ReadFile(hComm, buf, bytesRead, &temp, NULL);
+
+			printPackage(buf, bytesRead, 1);
+
+			int response_lenght = buf[2];
+			assert(buf[2] > bytesRead);
+			printf("\nCRC sum:\n");
+			printf("%02X %02X\n\n", (byte)ModRTU_CRC((byte*)buf, bytesRead - 2), (byte)(ModRTU_CRC((byte*)buf, bytesRead - 2) >> 8));
+		}
+	}
+	return bytesRead;
+}
+//convert byte into digital value array
 void readBinary(char* number, int response_lenght)
 {
 	int *arr = (int*)malloc(response_lenght * 8 * sizeof(int));
@@ -99,7 +141,6 @@ void readBinary(char* number, int response_lenght)
 	}
 }
 
-
 int* readInt(char* buf, int response_lenght)   //Convert to INT 2 bytes
 {
 	int *intarray = (int*)malloc((response_lenght / 2) * sizeof(int));
@@ -109,7 +150,6 @@ int* readInt(char* buf, int response_lenght)   //Convert to INT 2 bytes
 
 	return intarray;
 }
-
 
 float* readInverseFloat(char* buf, int response_lenght)  //Convert to Float IEEE 754 4 bytes
 {
@@ -149,156 +189,122 @@ long* readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 byte
 	return rdLng;
 }
 
-bool ReadCoilStatus();
+bool ReadCoilStatus()
+{
+	return 1;
+}
+
 bool ReadInputStatus()
 {
-    char buf[128] = {0};
-    requestSingle request;
-    DWORD bytesRead,dwEventMask,bytesWritten,temp;
+	char buf[128] = { 0 };
+	requestSingle request;
+	DWORD bytesRead, dwEventMask, bytesWritten, temp;
 
-    int* bus;
-    float* test;
-    long* rdLng;
-    double* rdDbl;
+	int* bus;
+	float* test;
+	long* rdLng;
+	double* rdDbl;
 
-    request_Read(&request,1,4,0,20);
-    PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
-                    //test loop
-    while(1){
+	request_Read(&request, 1, 4, 0, 20);
+	bytesRead = nb_read_impl(buf, request);
+	int response_lenght = buf[2];
 
-   if (!WriteFile(hComm, &request, sizeof(request), &bytesWritten, NULL)){
-                perror("error: ");
-                return FALSE;
-   }
-    printPackage(&request, bytesWritten, 0);
+	bus = readInt(buf, bytesRead);
+	test = readInverseFloat(buf, response_lenght); // responce_lenght possible vulnerability
+	rdLng = readLong(buf, response_lenght);
+	rdDbl = readDouble(buf, response_lenght);
 
-    SetCommMask(hComm, EV_RXCHAR);
-    WaitCommEvent(hComm, &dwEventMask, NULL);
+	//show result
+	printf("\n\n Hex:\t\tIntegers:");
+	for (unsigned int i = 3, j = 0; i < bytesRead - 2; i += 2, j++)
+	{
+		printf("\n%04X\t\t%d", bus[j], bus[j]);
+	}
 
-    Sleep(50);
+	printf("\n\n\n Inverse Floats:");
+	for (int i = 0; i < (response_lenght / 4) - 1; i++)
+		printf("\n%f", test[i]);
 
-    if ((dwEventMask & EV_RXCHAR) != 0)
-		{
+	printf("\n\n\n Hex(long):\t\t long:");
+	for (unsigned int i = 3, j = 0; j <= (response_lenght / 4) - 1; i += 4, j++)
+	{
+		printf("\n%08X\t\t%ld", rdLng[j], rdLng[j]);
+	}
 
-			ClearCommError(hComm, NULL, &comstat);
-			bytesRead = comstat.cbInQue;
-			if (bytesRead)
-			{
-            if(!ReadFile(hComm, buf, bytesRead, &temp, NULL))
-				{
-					printf("\nA timeout occured.\n");
-				}
-				printPackage(buf, bytesRead, 1);
-				int response_lenght = buf[2];
-
-				printf("\nCRC sum:\n");
-				printf("%02X %02X\n\n", (byte)ModRTU_CRC((byte*)buf, bytesRead - 2), (byte)(ModRTU_CRC((byte*)buf, bytesRead - 2) >> 8));
-
-				bus = readInt(buf, bytesRead);
-				test = readInverseFloat(buf, response_lenght); // responce_lenght possible vulnerability
-				rdLng = readLong(buf, response_lenght);
-				rdDbl = readDouble(buf, response_lenght);
-
-
-				printf("\n\n Hex:\t\tIntegers:");
-				for (unsigned int i = 3, j = 0; i < bytesRead - 2; i += 2, j++)
-				{
-					printf("\n%04X\t\t%d", bus[j], bus[j]);
-				}
-
-				printf("\n\n\n Inverse Floats:");
-				for (int i = 0; i < (response_lenght / 4) - 1; i++)
-					printf("\n%f", test[i]);
-
-				printf("\n\n\n Hex(long):\t\t long:");
-				for (unsigned int i = 3, j = 0; j <= (response_lenght / 4) - 1; i += 4, j++)
-				{
-					printf("\n%08X\t\t%ld", rdLng[j], rdLng[j]);
-				}
-
-				printf("\n\n\n double:");
-				for (int i = 0; i < (response_lenght / 8); i++)
-					printf("\n%e", rdDbl[i]);
-													//Free memory
-				free(rdDbl);
-				free(rdLng);
-				free(bus);
-				free(test);
-			}
-		}
-        PurgeComm(hComm,PURGE_RXCLEAR|PURGE_TXCLEAR);
-        memset(buf,0,sizeof(buf));
-        getchar();
-    }
-    return TRUE;
+	printf("\n\n\n double:");
+	for (int i = 0; i < (response_lenght / 8); i++)
+		printf("\n%e", rdDbl[i]);
+	//Free memory
+	free(rdDbl);
+	free(rdLng);
+	free(bus);
+	free(test);
+	memset(buf, 0, sizeof(buf));
+	return TRUE;
 }
 bool ReadHoldingRegisters();
 bool ReadInputRegisters();
 
-
 bool OpenPort(/*int baudrate, int bytesize, int parity, int stopbits*/)
 {
-  hComm = CreateFile( pcComPort,
-                    GENERIC_READ | GENERIC_WRITE,
-                    0,
-                    NULL,
-                    OPEN_EXISTING,
-                    0, //для Modbus ставить FILE_FLAG_OVERLAPPED // для теста 0
-                    NULL);
-    if (hComm != INVALID_HANDLE_VALUE)
-        {
-        if(!GetCommState(hComm,&dcb))
-            {
-               printf("GetCommState error\n");
-               return false;
-            }
-        dcb.BaudRate = CBR_9600;
-        dcb.ByteSize = 8;
-        dcb.Parity = NOPARITY;
-        dcb.StopBits = ONESTOPBIT;
-         if (SetCommState(hComm,&dcb))
-                printf("%s baud rate is %d\n",pcComPort,(int)dcb.BaudRate);
+	hComm = CreateFile(pcComPort,
+		GENERIC_READ | GENERIC_WRITE,
+		0,
+		NULL,
+		OPEN_EXISTING,
+		0, //для Modbus ставить FILE_FLAG_OVERLAPPED // для теста 0
+		NULL);
+	if (hComm != INVALID_HANDLE_VALUE)
+	{
+		if (!GetCommState(hComm, &dcb))
+		{
+			printf("GetCommState error\n");
+			return false;
+		}
+		dcb.BaudRate = CBR_9600;
+		dcb.ByteSize = 8;
+		dcb.Parity = NOPARITY;
+		dcb.StopBits = ONESTOPBIT;
+		if (SetCommState(hComm, &dcb))
+			printf("%s baud rate is %d\n", pcComPort, (int)dcb.BaudRate);
 
-        if(!GetCommTimeouts(hComm,&timeouts))
-            {
-               printf("GetCommState error\n");
-               return false;
-            }
+		if (!GetCommTimeouts(hComm, &timeouts))
+		{
+			printf("GetCommState error\n");
+			return false;
+		}
 
-        double dblBitsPerByte = 1 + dcb.ByteSize + dcb.StopBits + ( dcb.Parity  ? 1 : 0 );
-        timeouts.ReadIntervalTimeout = (DWORD) ceil((3.5f*dblBitsPerByte/(double)dcb.BaudRate * 1000.0f));
-        printf("readIntervalTimeOut = %d\n",timeouts.ReadIntervalTimeout);
-        timeouts.ReadTotalTimeoutMultiplier = 10;
-        timeouts.ReadTotalTimeoutConstant = 20;
-        timeouts.WriteTotalTimeoutMultiplier = 2000;
-        timeouts.WriteTotalTimeoutConstant = 1;
-        SetCommTimeouts(hComm, &timeouts);
-
-        return true;
-        }
-    else return false;
+		double dblBitsPerByte = 1 + dcb.ByteSize + dcb.StopBits + (dcb.Parity ? 1 : 0);
+		timeouts.ReadIntervalTimeout = (DWORD)ceil((3.5f*dblBitsPerByte / (double)dcb.BaudRate * 1000.0f));
+		timeouts.ReadTotalTimeoutMultiplier = 10;
+		timeouts.ReadTotalTimeoutConstant = 20;
+		timeouts.WriteTotalTimeoutMultiplier = 2000;
+		timeouts.WriteTotalTimeoutConstant = 1;
+		SetCommTimeouts(hComm, &timeouts);
+		return true;
+	}
+	else return false;
 }
-
 
 int main()
 {
 
-    switch (OpenPort())
-    {
-        case TRUE:
-                assert(ReadInputStatus());
-//                assert(ReadCoilStatus());
-//                assert(ReadHoldingRegisters());
-//                assert(ReadInputRegisters());
-                break;
+	switch (OpenPort())
+	{
+	case TRUE:
+		assert(ReadInputStatus());
+		//                assert(ReadCoilStatus());
+		//                assert(ReadHoldingRegisters());
+		//                assert(ReadInputRegisters());
+		break;
 
-            default:
-                {
-                    printf("%s opening error\n",pcComPort);
-                    break;
-                }
-    }
-    CloseHandle(hComm);
-    return 0;
-
+	default:
+	{
+		printf("%s opening error\n", pcComPort);
+		break;
+	}
+	}
+	CloseHandle(hComm);
+	getchar();
+	return 0;
 }
