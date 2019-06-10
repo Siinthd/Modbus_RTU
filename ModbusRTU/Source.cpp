@@ -147,9 +147,11 @@ int* readBinary(char* number, int response_lenght)
 
 int* readInt(char* buf, int response_lenght)   //Convert to INT 2 bytes
 {
-	int *intarray = (int*)malloc((response_lenght / 2) * sizeof(int));
-	for (unsigned int i = 3, j = 0; i < response_lenght - 2; i += 2, j++)
+	int *intarray = (int*)malloc((response_lenght) / 2 * sizeof(int));
+	for (unsigned int i = 3, j = 0; j < (response_lenght) / 2; i += 2, j++)
+	{
 		intarray[j] = ((byte)buf[i] << 8) | (byte)buf[i + 1];
+	}
 	return intarray;
 }
 
@@ -157,12 +159,12 @@ float* readInverseFloat(char* buf, int response_lenght)  //Convert to Float IEEE
 {
 	float *farray = (float*)malloc((response_lenght / 4) * sizeof(float));
 	BYTE ui[4];
-	for (int i = 3, j = 0; j < (response_lenght / 4) - 1; i += 4, j++)
+	for (int i = 3, j = 0; j < (response_lenght / 4); i += 4, j++)
 	{
-		ui[3] = buf[i];
-		ui[2] = buf[i + 1];
-		ui[1] = buf[i + 2];
-		ui[0] = buf[i + 3];
+		ui[0] = buf[i];
+		ui[1] = buf[i + 1];
+		ui[2] = buf[i + 2];
+		ui[3] = buf[i + 3];
 		memcpy(&farray[j], ui, 4);
 	}
 	return farray;
@@ -183,13 +185,13 @@ double* readDouble(char* buf, int response_lenght) //Convert to  Double IEEE 754
 long* readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 bytes
 {
 	long* rdLng = (long*)malloc((response_lenght / 4) * sizeof(long));
-	for (unsigned int i = 3, j = 0; j <= (response_lenght / 4) - 1; i += 4, j++) {
+	for (unsigned int i = 3, j = 0; j < (response_lenght / 4); i += 4, j++) {
 		rdLng[j] = ((byte)buf[i] << 24 | (byte)buf[i + 1] << 16 | (byte)buf[i + 2] << 8 | (byte)buf[i + 3]);
 	}
 	return rdLng;
 }
 
-bool ReadCoilStatus()           //0x01  read D0
+bool ReadCoilStatus()       //0x01  Read D0
 {
 	printf("\n*********ReadCoilStatus function**********\n");
 	const int value = 37;             //debug info
@@ -285,67 +287,112 @@ bool ReadInputStatus()     //0x02   Read D1
 	return TRUE;
 }
 
-
 bool ReadHoldingRegisters()      //0x03 read A0
 {
+	printf("\n*********ReadInputStatus function**********\n");
+	const int value = 3;             //debug info
+	int function = 3;
+	int address = 107;           //real address - 1
+	int ID = 17;
+
 	char buf[128] = { 0 };
 	requestSingle request;
 	DWORD bytesRead;
-
+	//select output mode -- integer
 	int* bus;
 	float* test;
 	long* rdLng;
 	double* rdDbl;
 
-	request_Read(&request, 1, 3, 0, 20);
+	request_Read(&request, ID, function, address, value);
 	bytesRead = nb_read_impl(buf, request);
 	int response_lenght = buf[2];
 
-	bus = readInt(buf, bytesRead);
-	test = readInverseFloat(buf, response_lenght); // responce_lenght possible vulnerability
+	bus = readInt(buf, response_lenght);
+	test = readInverseFloat(buf, response_lenght);  // responce_lenght possible vulnerability
 	rdLng = readLong(buf, response_lenght);
 	rdDbl = readDouble(buf, response_lenght);
-
 	//show result
-	printf("\n\n Hex:\t\tIntegers:");
-	for (unsigned int i = 3, j = 0; i < bytesRead - 2; i += 2, j++)
+	printf("  address |   Value    \n"
+		"----------+----------\n");
+	//UINT16 - Big Endian (AB)
+	for (unsigned int j = 0; j < response_lenght / 2; j++)
 	{
-		printf("\n%04X\t\t%d", bus[j], bus[j]);
+		printf("%9d | %9d\n", address + 40001 + j, bus[j]);
 	}
-
-	printf("\n\n\n Inverse Floats:");
-	for (int i = 0; i < (response_lenght / 4) - 1; i++)
-		printf("\n%f", test[i]);
-
-	printf("\n\n\n Hex(long):\t\t long:");
-	for (unsigned int i = 3, j = 0; j <= (response_lenght / 4) - 1; i += 4, j++)
+	//Float - Little Endian (DCBA)
+	for (int i = 0; i < (response_lenght / 4); i++)
+		printf("\n%9d | %9.2f\n", address + 40001 + i, test[i]);
+	//Long - Big Endian (ABCD)
+	for (int i = 0, j = 0; j < (response_lenght / 4); i += 4, j++)
 	{
-		printf("\n%08X\t\t%ld", rdLng[j], rdLng[j]);
+		printf("\n%9d | %9lu\n", address + 40001 + i, rdLng[j]);
 	}
-
-	printf("\n\n\n double:");
 	for (int i = 0; i < (response_lenght / 8); i++)
-		printf("\n%e", rdDbl[i]);
+		printf("\n%9d | %9f\n", address + 40001 + i, rdDbl[i]);
 	//Free memory
 	free(rdDbl);
 	free(rdLng);
 	free(bus);
 	free(test);
 	memset(buf, 0, sizeof(buf));
+
+	printf("\n*********end function**********\n");
 	return TRUE;
 }
 
 bool ReadInputRegisters()      //0x04   Read A1
 {
-	char buf[128] = { 0 };
-	DWORD bytesRead;
-	requestSingle request;
+	printf("\n*********ReadInputRegisters function**********\n");
+	const int value = 3;             //debug info
+	int function = 4;
+	int address = 107;           //real address - 1
+	int ID = 17;
 
-	request_Read(&request, 1, 4, 0, 20);
+	char buf[128] = { 0 };
+	requestSingle request;
+	DWORD bytesRead;
+	//select output mode -- integer
+	int* bus;
+	float* test;
+	long* rdLng;
+	double* rdDbl;
+
+	request_Read(&request, ID, function, address, value);
 	bytesRead = nb_read_impl(buf, request);
 	int response_lenght = buf[2];
 
-	return true;
+	bus = readInt(buf, response_lenght);
+	test = readInverseFloat(buf, response_lenght);  // responce_lenght possible vulnerability
+	rdLng = readLong(buf, response_lenght);
+	rdDbl = readDouble(buf, response_lenght);
+	//show result
+	printf("  address |   Value    \n"
+		"----------+----------\n");
+	//UINT16 - Big Endian (AB)
+	for (unsigned int j = 0; j < response_lenght / 2; j++)
+	{
+		printf("%9d | %9d\n", address + 40001 + j, bus[j]);
+	}
+	//Float - Little Endian (DCBA)
+	for (int i = 0; i < (response_lenght / 4); i++)
+		printf("\n%9d | %9.2f\n", address + 40001 + i, test[i]);
+	//Long - Big Endian (ABCD)
+	for (int i = 0, j = 0; j < (response_lenght / 4); i += 4, j++)
+	{
+		printf("\n%9d | %9lu\n", address + 40001 + i, rdLng[j]);
+	}
+	for (int i = 0; i < (response_lenght / 8); i++)
+		printf("\n%9d | %9f\n", address + 40001 + i, rdDbl[i]);
+	//Free memory
+	free(rdDbl);
+	free(rdLng);
+	free(bus);
+	free(test);
+	memset(buf, 0, sizeof(buf));
+
+	printf("\n*********end function**********\n");
+	return TRUE;
 }
 
 bool OpenPort(/*int baudrate, int bytesize, int parity, int stopbits*/)
@@ -393,10 +440,10 @@ int main()
 	switch (OpenPort())
 	{
 	case TRUE:
-		assert(ReadCoilStatus());
-		assert(ReadInputStatus());
-		//assert(ReadHoldingRegisters());
-		//assert(ReadInputRegisters());
+		//assert(ReadCoilStatus());
+		//assert(ReadInputStatus());
+		assert(ReadHoldingRegisters());
+		assert(ReadInputRegisters());
 		break;
 
 	default:
