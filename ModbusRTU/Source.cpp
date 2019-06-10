@@ -19,7 +19,6 @@ COMMTIMEOUTS timeouts;
 const char* pcComPort = "\\\\.\\COM15";
 DCB dcb;
 
-
 //overload debug info
 void printPackage(requestSingle* data, int size, int isin)
 {
@@ -35,7 +34,6 @@ void printPackage(char* data, int size, int isin)
 	for (int i = 0; i < size; i++)
 		printf("%02X ", (byte)data[i]);
 	printf("\n\r");
-
 }
 
 uint16_t ModRTU_CRC(byte* buf, int len)
@@ -56,6 +54,22 @@ uint16_t ModRTU_CRC(byte* buf, int len)
 	}
 	// Note, this number has low and high bytes swapped, so use it accordingly (or swap bytes)
 	return crc;
+}
+
+bool CRC_Check(byte* buf, int bytesRead)
+{
+	unsigned int source;
+	unsigned int CRC = ModRTU_CRC(buf, bytesRead - 2);
+	source = (byte)buf[bytesRead - 1] | (byte)buf[bytesRead - 2] << 8;
+	if (source == CRC)
+	{
+		printf("CRC check!\n");
+		return 1;
+	}
+	else {
+		printf("wrong CRC (%02X vs %02X)!\n", source, CRC);
+		return 0;
+	}
 }
 
 void request_Read(requestSingle* send, int ID, int function, int address, int value)
@@ -81,80 +95,67 @@ void request_Read(requestSingle* send, int ID, int function, int address, int va
 DWORD nb_read_impl(char* buf, requestSingle request)
 {
 	DWORD bytesRead, dwEventMask, bytesWritten, temp;
-
 	PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
 	//test loop
-
 	if (!WriteFile(hComm, &request, sizeof(request), &bytesWritten, NULL)) {
 		perror("error: ");
 		return FALSE;
 	}
 	printPackage(&request, bytesWritten, 0);
-
 	SetCommMask(hComm, EV_RXCHAR);
-
 	WaitCommEvent(hComm, &dwEventMask, NULL);
-
 	Sleep(50);
-
 	if ((dwEventMask & EV_RXCHAR) != 0)
 	{
-
 		ClearCommError(hComm, NULL, &comstat);
 		bytesRead = comstat.cbInQue;
 		if (bytesRead)
 		{
 			ReadFile(hComm, buf, bytesRead, &temp, NULL);
-
 			printPackage(buf, bytesRead, 1);
-
-			int response_lenght = buf[2];
-			assert(buf[2] > bytesRead);
-			printf("\nCRC sum:\n");
-			printf("%02X %02X\n\n", (byte)ModRTU_CRC((byte*)buf, bytesRead - 2), (byte)(ModRTU_CRC((byte*)buf, bytesRead - 2) >> 8));
+			CRC_Check((byte*)buf, (int)bytesRead);
 		}
 	}
 	return bytesRead;
 }
 //convert byte into digital value array
-void readBinary(char* number, int response_lenght)
+int* readBinary(char* number, int response_lenght)
 {
 	int *arr = (int*)malloc(response_lenght * 8 * sizeof(int));
 
 	for (int j = 0; j < response_lenght; j++)
 	{
 		for (int i = 7, k = 0; i >= 0; i--, k++) {
-			if ((number[j] & (1 << i)) != 0) {
+			if ((number[j + 3] & (1 << i)) != 0) {
 				arr[j * 8 + k] = 1;
 			}
 			else {
 				arr[j * 8 + k] = 0;
 			}
 		}
-		printf("\n");
 	}
-
+	//debug info
+	printf("\n\n*******readBinary function*******\n");
 	for (int i = 0; i < response_lenght; i++) {
 		for (int j = 0; j < 8; j++)
 			printf("%d", arr[i * 8 + j]);
-		printf("\n");
+		printf("\n\n");
 	}
+	printf("*******End function*******\n\n\n");
+	return arr;
 }
 
 int* readInt(char* buf, int response_lenght)   //Convert to INT 2 bytes
 {
 	int *intarray = (int*)malloc((response_lenght / 2) * sizeof(int));
-
 	for (unsigned int i = 3, j = 0; i < response_lenght - 2; i += 2, j++)
 		intarray[j] = ((byte)buf[i] << 8) | (byte)buf[i + 1];
-
 	return intarray;
 }
 
 float* readInverseFloat(char* buf, int response_lenght)  //Convert to Float IEEE 754 4 bytes
 {
 	float *farray = (float*)malloc((response_lenght / 4) * sizeof(float));
-
 	BYTE ui[4];
 	for (int i = 3, j = 0; j < (response_lenght / 4) - 1; i += 4, j++)
 	{
@@ -171,7 +172,6 @@ double* readDouble(char* buf, int response_lenght) //Convert to  Double IEEE 754
 {
 	BYTE ul[8];
 	double* rdDbl = (double*)malloc((response_lenght / 8) * sizeof(double));
-
 	for (int i = 3, j = 0; j < (response_lenght / 8); i += 8, j++) { //Convert to double
 		for (int k = 7; k >= 0; k--)
 			ul[k] = buf[i + k];
@@ -189,23 +189,78 @@ long* readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 byte
 	return rdLng;
 }
 
-bool ReadCoilStatus()
+bool ReadCoilStatus()           //0x01  read D0
 {
-	return 1;
+	const int value = 37;             //debug info
+	int function = 1;
+	int address = 19;           //real address - 1
+	int ID = 11;
+
+	struct Coil {                //store values
+		int Coil_value;
+		int address;
+	}Coli_1[value];
+
+	char buf[128] = { 0 };
+	DWORD bytesRead;
+	requestSingle request;
+
+	request_Read(&request, ID, function, address, value);
+
+
+	int* arr;
+	bytesRead = nb_read_impl(buf, request);
+
+	int lenght = buf[2];
+	arr = readBinary(buf, lenght);
+	//coils
+	int i = 0;
+	//debug info
+	printf("  address |   Value    \n"
+		"----------+----------\n");
+	for (int j = 0; j < 5; j++) {
+		for (int k = 7; k >= 0; k--)
+		{
+			if (i < value)
+			{
+				Coli_1[i].address = address + 1 + i;
+				Coli_1[i].Coil_value = arr[j * 8 + k];
+				printf("%9d | %9d\n", Coli_1[i].address, Coli_1[i].Coil_value);
+				i++;
+			}
+		}
+		printf("----------+----------\n");
+	}
+	memset(buf, 0, sizeof(buf));
+	return TRUE;
 }
 
-bool ReadInputStatus()
+bool ReadInputStatus()     //0x02   Read D1
+{
+	char buf[128] = { 0 };
+	DWORD bytesRead;
+	requestSingle request;
+
+	request_Read(&request, 1, 2, 0, 20);
+	bytesRead = nb_read_impl(buf, request);
+	int response_lenght = buf[2];
+
+	return true;
+}
+
+
+bool ReadHoldingRegisters()      //0x03 read A0
 {
 	char buf[128] = { 0 };
 	requestSingle request;
-	DWORD bytesRead, dwEventMask, bytesWritten, temp;
+	DWORD bytesRead;
 
 	int* bus;
 	float* test;
 	long* rdLng;
 	double* rdDbl;
 
-	request_Read(&request, 1, 4, 0, 20);
+	request_Read(&request, 1, 3, 0, 20);
 	bytesRead = nb_read_impl(buf, request);
 	int response_lenght = buf[2];
 
@@ -242,8 +297,19 @@ bool ReadInputStatus()
 	memset(buf, 0, sizeof(buf));
 	return TRUE;
 }
-bool ReadHoldingRegisters();
-bool ReadInputRegisters();
+
+bool ReadInputRegisters()      //0x04   Read A1
+{
+	char buf[128] = { 0 };
+	DWORD bytesRead;
+	requestSingle request;
+
+	request_Read(&request, 1, 4, 0, 20);
+	bytesRead = nb_read_impl(buf, request);
+	int response_lenght = buf[2];
+
+	return true;
+}
 
 bool OpenPort(/*int baudrate, int bytesize, int parity, int stopbits*/)
 {
@@ -273,7 +339,6 @@ bool OpenPort(/*int baudrate, int bytesize, int parity, int stopbits*/)
 			printf("GetCommState error\n");
 			return false;
 		}
-
 		double dblBitsPerByte = 1 + dcb.ByteSize + dcb.StopBits + (dcb.Parity ? 1 : 0);
 		timeouts.ReadIntervalTimeout = (DWORD)ceil((3.5f*dblBitsPerByte / (double)dcb.BaudRate * 1000.0f));
 		timeouts.ReadTotalTimeoutMultiplier = 10;
@@ -288,14 +353,13 @@ bool OpenPort(/*int baudrate, int bytesize, int parity, int stopbits*/)
 
 int main()
 {
-
 	switch (OpenPort())
 	{
 	case TRUE:
-		assert(ReadInputStatus());
-		//                assert(ReadCoilStatus());
-		//                assert(ReadHoldingRegisters());
-		//                assert(ReadInputRegisters());
+		//assert(ReadInputStatus());
+		assert(ReadCoilStatus());
+		//assert(ReadHoldingRegisters());
+		//assert(ReadInputRegisters());
 		break;
 
 	default:
