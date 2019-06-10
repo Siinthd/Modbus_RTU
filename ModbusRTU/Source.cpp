@@ -8,6 +8,7 @@
 #include <conio.h>
 
 
+
 struct requestSingle {
 	byte Slave_code[8];
 };
@@ -191,11 +192,16 @@ long* readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 byte
 	return rdLng;
 }
 
-bool ReadCoilStatus()       //0x01  Read D0
+bool ReadStatus(int function)       //0x01 - 0x02  Read D0 - D1
 {
-	printf("\n*********ReadCoilStatus function**********\n");
+	if (function == 1)
+		printf("\n*********ReadCoilStatus function**********\n");
+	else if (function == 2)
+		printf("\n*********ReadInputStatus function**********\n");
+	else
+		return false;
+
 	const int value = 37;             //debug info
-	int function = 1;
 	int address = 19;           //real address - 1
 	int ID = 11;
 
@@ -226,7 +232,7 @@ bool ReadCoilStatus()       //0x01  Read D0
 		{
 			if (i < value)
 			{
-				Coli_1[i].address = address + 1 + i;
+				Coli_1[i].address = (function == 1) ? (address + 1 + i) : (address + 10001 + i);
 				Coli_1[i].Coil_value = arr[j * 8 + k];
 				printf("%9d | %9d\n", Coli_1[i].address, Coli_1[i].Coil_value);
 				i++;
@@ -239,59 +245,16 @@ bool ReadCoilStatus()       //0x01  Read D0
 	return TRUE;
 }
 
-bool ReadInputStatus()     //0x02   Read D1
+bool ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 {
-	printf("\n*********ReadInputStatus function**********\n");
-	const int value = 22;             //debug info
-	int function = 2;
-	int address = 196;           //real address - 1
-	int ID = 11;
+	if (function == 3)
+		printf("\n*********ReadHoldRegisters function**********\n");
+	else if (function == 4)
+		printf("\n*********ReadInputRegisters function**********\n");
+	else
+		return false;
 
-	struct Coil {                //store values
-		int Coil_value;
-		int address;
-	}Coli_1[value];
-
-	char buf[128] = { 0 };
-	DWORD bytesRead;
-	requestSingle request;
-
-	request_Read(&request, ID, function, address, value);
-
-
-	int* arr;
-	bytesRead = nb_read_impl(buf, request);
-
-	int lenght = buf[2];
-	arr = readBinary(buf, lenght);
-	//coils
-	int i = 0;
-	//debug info
-	printf("  address |   Value    \n"
-		"----------+----------\n");
-	for (int j = 0; j < lenght; j++) {
-		for (int k = 7; k >= 0; k--)
-		{
-			if (i < value)
-			{
-				Coli_1[i].address = address + 10001 + i;
-				Coli_1[i].Coil_value = arr[j * 8 + k];
-				printf("%9d | %9d\n", Coli_1[i].address, Coli_1[i].Coil_value);
-				i++;
-			}
-		}
-		printf("----------+----------\n");
-	}
-	memset(buf, 0, sizeof(buf));
-	printf("\n*********end function**********\n");
-	return TRUE;
-}
-
-bool ReadHoldingRegisters()      //0x03 read A0
-{
-	printf("\n*********ReadInputStatus function**********\n");
 	const int value = 3;             //debug info
-	int function = 3;
 	int address = 107;           //real address - 1
 	int ID = 17;
 
@@ -318,72 +281,18 @@ bool ReadHoldingRegisters()      //0x03 read A0
 	//UINT16 - Big Endian (AB)
 	for (unsigned int j = 0; j < response_lenght / 2; j++)
 	{
-		printf("%9d | %9d\n", address + 40001 + j, bus[j]);
+		printf("%9d | %9d\n", (function == 3) ? (address + 40001 + j) : (address + 30001 + j), bus[j]);
 	}
 	//Float - Little Endian (DCBA)
 	for (int i = 0; i < (response_lenght / 4); i++)
-		printf("\n%9d | %9.2f\n", address + 40001 + i, test[i]);
+		printf("\n%9d | %9.2f\n", (function == 3) ? (address + 40001 + i) : (address + 30001 + i), test[i]);
 	//Long - Big Endian (ABCD)
 	for (int i = 0, j = 0; j < (response_lenght / 4); i += 4, j++)
 	{
-		printf("\n%9d | %9lu\n", address + 40001 + i, rdLng[j]);
+		printf("\n%9d | %9lu\n", (function == 3) ? (address + 40001 + i) : (address + 30001 + i), rdLng[j]);
 	}
 	for (int i = 0; i < (response_lenght / 8); i++)
-		printf("\n%9d | %9f\n", address + 40001 + i, rdDbl[i]);
-	//Free memory
-	free(rdDbl);
-	free(rdLng);
-	free(bus);
-	free(test);
-	memset(buf, 0, sizeof(buf));
-
-	printf("\n*********end function**********\n");
-	return TRUE;
-}
-
-bool ReadInputRegisters()      //0x04   Read A1
-{
-	printf("\n*********ReadInputRegisters function**********\n");
-	const int value = 3;             //debug info
-	int function = 4;
-	int address = 107;           //real address - 1
-	int ID = 17;
-
-	char buf[128] = { 0 };
-	requestSingle request;
-	DWORD bytesRead;
-	//select output mode -- integer
-	int* bus;
-	float* test;
-	long* rdLng;
-	double* rdDbl;
-
-	request_Read(&request, ID, function, address, value);
-	bytesRead = nb_read_impl(buf, request);
-	int response_lenght = buf[2];
-
-	bus = readInt(buf, response_lenght);
-	test = readInverseFloat(buf, response_lenght);  // responce_lenght possible vulnerability
-	rdLng = readLong(buf, response_lenght);
-	rdDbl = readDouble(buf, response_lenght);
-	//show result
-	printf("  address |   Value    \n"
-		"----------+----------\n");
-	//UINT16 - Big Endian (AB)
-	for (unsigned int j = 0; j < response_lenght / 2; j++)
-	{
-		printf("%9d | %9d\n", address + 40001 + j, bus[j]);
-	}
-	//Float - Little Endian (DCBA)
-	for (int i = 0; i < (response_lenght / 4); i++)
-		printf("\n%9d | %9.2f\n", address + 40001 + i, test[i]);
-	//Long - Big Endian (ABCD)
-	for (int i = 0, j = 0; j < (response_lenght / 4); i += 4, j++)
-	{
-		printf("\n%9d | %9lu\n", address + 40001 + i, rdLng[j]);
-	}
-	for (int i = 0; i < (response_lenght / 8); i++)
-		printf("\n%9d | %9f\n", address + 40001 + i, rdDbl[i]);
+		printf("\n%9d | %9f\n", (function == 3) ? (address + 40001 + i) : (address + 30001 + i), rdDbl[i]);
 	//Free memory
 	free(rdDbl);
 	free(rdLng);
@@ -440,10 +349,10 @@ int main()
 	switch (OpenPort())
 	{
 	case TRUE:
-		//assert(ReadCoilStatus());
-		//assert(ReadInputStatus());
-		assert(ReadHoldingRegisters());
-		assert(ReadInputRegisters());
+		assert(ReadStatus(1));
+		assert(ReadStatus(2));
+		assert(ReadRegisters(3));
+		assert(ReadRegisters(4));
 		break;
 
 	default:
