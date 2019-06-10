@@ -191,6 +191,7 @@ long* readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 byte
 
 bool ReadCoilStatus()           //0x01  read D0
 {
+	printf("\n*********ReadCoilStatus function**********\n");
 	const int value = 37;             //debug info
 	int function = 1;
 	int address = 19;           //real address - 1
@@ -218,7 +219,7 @@ bool ReadCoilStatus()           //0x01  read D0
 	//debug info
 	printf("  address |   Value    \n"
 		"----------+----------\n");
-	for (int j = 0; j < 5; j++) {
+	for (int j = 0; j < lenght; j++) {
 		for (int k = 7; k >= 0; k--)
 		{
 			if (i < value)
@@ -232,20 +233,56 @@ bool ReadCoilStatus()           //0x01  read D0
 		printf("----------+----------\n");
 	}
 	memset(buf, 0, sizeof(buf));
+	printf("\n*********end function**********\n");
 	return TRUE;
 }
 
 bool ReadInputStatus()     //0x02   Read D1
 {
+	printf("\n*********ReadInputStatus function**********\n");
+	const int value = 22;             //debug info
+	int function = 2;
+	int address = 196;           //real address - 1
+	int ID = 11;
+
+	struct Coil {                //store values
+		int Coil_value;
+		int address;
+	}Coli_1[value];
+
 	char buf[128] = { 0 };
 	DWORD bytesRead;
 	requestSingle request;
 
-	request_Read(&request, 1, 2, 0, 20);
-	bytesRead = nb_read_impl(buf, request);
-	int response_lenght = buf[2];
+	request_Read(&request, ID, function, address, value);
 
-	return true;
+
+	int* arr;
+	bytesRead = nb_read_impl(buf, request);
+
+	int lenght = buf[2];
+	arr = readBinary(buf, lenght);
+	//coils
+	int i = 0;
+	//debug info
+	printf("  address |   Value    \n"
+		"----------+----------\n");
+	for (int j = 0; j < lenght; j++) {
+		for (int k = 7; k >= 0; k--)
+		{
+			if (i < value)
+			{
+				Coli_1[i].address = address + 10001 + i;
+				Coli_1[i].Coil_value = arr[j * 8 + k];
+				printf("%9d | %9d\n", Coli_1[i].address, Coli_1[i].Coil_value);
+				i++;
+			}
+		}
+		printf("----------+----------\n");
+	}
+	memset(buf, 0, sizeof(buf));
+	printf("\n*********end function**********\n");
+	return TRUE;
 }
 
 
@@ -356,8 +393,8 @@ int main()
 	switch (OpenPort())
 	{
 	case TRUE:
-		//assert(ReadInputStatus());
 		assert(ReadCoilStatus());
+		assert(ReadInputStatus());
 		//assert(ReadHoldingRegisters());
 		//assert(ReadInputRegisters());
 		break;
