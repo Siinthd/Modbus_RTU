@@ -61,9 +61,8 @@ bool CRC_Check(byte* buf, int bytesRead)
 {
 	unsigned int source;
 	unsigned int CRC = ModRTU_CRC(buf, bytesRead - 2);
-	source = (byte)buf[bytesRead - 1] | (byte)buf[bytesRead - 2] << 8;
-	if (source == CRC)
-	{
+	source = (byte)buf[bytesRead - 1] << 8 | (byte)buf[bytesRead - 2];
+	if (source == CRC) {
 		printf("CRC check!\n");
 		return 1;
 	}
@@ -93,13 +92,12 @@ void request_Read(requestSingle* send, int ID, int function, int address, int va
 
 }
 
+
 bool ModbussErrorCheck(byte* buffer, byte function)
 {
-	if (buffer[1] == (function ^ 0x80))
-	{
+	if (buffer[1] == (function ^ 0x80)) {
 		printf("\nError:");
-		switch (buffer[2])
-		{
+		switch (buffer[2]) {
 		case 0x01:printf("Illegal Function\n");
 			break;
 		case 0x02:printf("Illegal Data Address\n");
@@ -138,12 +136,10 @@ bool nb_read_impl(char* buf, requestSingle request)
 	SetCommMask(hComm, EV_RXCHAR);
 	WaitCommEvent(hComm, &dwEventMask, NULL);
 	Sleep(50);
-	if ((dwEventMask & EV_RXCHAR) != 0)
-	{
+	if ((dwEventMask & EV_RXCHAR) != 0) {
 		ClearCommError(hComm, NULL, &comstat);
 		bytesRead = comstat.cbInQue;
-		if (bytesRead)
-		{
+		if (bytesRead) {
 			ReadFile(hComm, buf, bytesRead, &temp, NULL);
 			printPackage(buf, bytesRead, 1);
 			CRC_Check((byte*)buf, (int)bytesRead);  //make assert
@@ -158,8 +154,7 @@ int* readBinary(char* number, int response_lenght)
 {
 	int *arr = (int*)malloc(response_lenght * 8 * sizeof(int));
 
-	for (int j = 0; j < response_lenght; j++)
-	{
+	for (int j = 0; j < response_lenght; j++) {
 		for (int i = 7, k = 0; i >= 0; i--, k++) {
 			if ((number[j + 3] & (1 << i)) != 0) {
 				arr[j * 8 + k] = 1;
@@ -229,9 +224,9 @@ long* readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 byte
 bool ReadStatus(int function)       //0x01 - 0x02  Read D0 - D1
 {
 	if (function == 1)
-		printf("\n*********ReadCoilStatus function**********\n");
+		printf("\n*********Read Coil Status function**********\n");
 	else if (function == 2)
-		printf("\n*********ReadInputStatus function**********\n");
+		printf("\n*********Read Input Status function**********\n");
 	else
 		return false;
 
@@ -259,10 +254,8 @@ bool ReadStatus(int function)       //0x01 - 0x02  Read D0 - D1
 	printf("  address |   Value    \n"
 		"----------+----------\n");
 	for (int j = 0; j < lenght; j++) {
-		for (int k = 7; k >= 0; k--)
-		{
-			if (i < value)
-			{
+		for (int k = 7; k >= 0; k--) {
+			if (i < value) {
 				Coli_1[i].address = Newadd + i;
 				Coli_1[i].Coil_value = arr[j * 8 + k];
 				printf("%9d | %9d\n", Coli_1[i].address, Coli_1[i].Coil_value);
@@ -279,9 +272,9 @@ bool ReadStatus(int function)       //0x01 - 0x02  Read D0 - D1
 bool ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 {
 	if (function == 3)
-		printf("\n*********ReadHoldRegisters function**********\n");
+		printf("\n*********Read Hold Registers function**********\n");
 	else if (function == 4)
-		printf("\n*********ReadInputRegisters function**********\n");
+		printf("\n*********Read Input Registers function**********\n");
 	else
 		return false;
 
@@ -310,8 +303,7 @@ bool ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 	printf("  address |   Value    \n"
 		"----------+----------\n");
 	//UINT16 - Big Endian (AB)
-	for (int j = 0; j < response_lenght / 2; j++)
-	{
+	for (int j = 0; j < response_lenght / 2; j++) {
 		printf("%9d | %9d\n", Newadd + j, bus[j]);
 	}
 	printf("----------+----------\n");
@@ -320,8 +312,7 @@ bool ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 		printf("\n%9d | %9.2f\n", Newadd + i, test[i]);
 	printf("----------+----------\n");
 	//Long - Big Endian (ABCD)
-	for (int i = 0, j = 0; j < (response_lenght / 4); i += 4, j++)
-	{
+	for (int i = 0, j = 0; j < (response_lenght / 4); i += 4, j++) {
 		printf("\n%9d | %9lu\n", Newadd + i, rdLng[j]);
 	}
 	printf("----------+----------\n");
@@ -334,6 +325,41 @@ bool ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 	free(bus);
 	free(test);
 	memset(buf, 0, sizeof(buf));
+	printf("\n*********end function**********\n");
+	return TRUE;
+}
+
+
+bool WriteRegisters(int function)      //0x05-0x06 write D0 -A0
+{
+	if (function == 5)
+		printf("\n*********Force Single Coil function**********\n");
+	else if (function == 6)
+		printf("\n*********Preset Single Registers function**********\n");
+	else
+		return false;
+
+	int value = 994;             //debug info
+	int address = 107;           //real address - 1
+	int ID = 17;
+
+	char buf[128] = { 0 };
+	requestSingle request;
+	//using Read function for Writing 1 byte
+	if (function == 5) {
+		(value > 1) ? value = 1 : value = 0;
+		request_Read(&request, ID, function, address, value * 0xFF);
+	}
+	else {
+		request_Read(&request, ID, function, address, value);
+	}
+
+	assert(nb_read_impl(buf, request));
+	if (!(ModRTU_CRC(request.Slave_code, 6) == ModRTU_CRC((byte*)buf, 6))) {
+		printf("\nattempt write cluster %d set to %d failed.\n", address + 1, value);
+		return false;
+	}
+	printf("\nCluster %d set to %d.\n", address + 1, value);
 	printf("\n*********end function**********\n");
 	return TRUE;
 }
@@ -389,6 +415,8 @@ int main()
 		assert(ReadStatus(2));
 		assert(ReadRegisters(3));
 		assert(ReadRegisters(4));
+		assert(WriteRegisters(5));
+		assert(WriteRegisters(6));
 	}
 
 
