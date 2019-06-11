@@ -93,7 +93,39 @@ void request_Read(requestSingle* send, int ID, int function, int address, int va
 
 }
 
-DWORD nb_read_impl(char* buf, requestSingle request)
+bool ModbussErrorCheck(byte* buffer, byte function)
+{
+	if (buffer[1] == (function ^ 0x80))
+	{
+		printf("\nError:");
+		switch (buffer[2])
+		{
+		case 0x01:printf("Illegal Function\n");
+			break;
+		case 0x02:printf("Illegal Data Address\n");
+			break;
+		case 0x03:printf("Illegal Data Value\n");
+			break;
+		case 0x04:printf("Slave Device Failure\n");
+			break;
+		case 0x05:printf("Acknowledge\n");
+			break;
+		case 0x06:printf("Slave Device Busy\n");
+			break;
+		case 0x07:printf("Negative Acknowledge\n");
+			break;
+		case 0x08:printf("Memory Parity Error\n");
+			break;
+		default:
+			printf("Error %d\n", buffer[2]);
+			break;
+		}
+		return FALSE;
+	}
+	return TRUE;
+}
+
+bool nb_read_impl(char* buf, requestSingle request)
 {
 	DWORD bytesRead, dwEventMask, bytesWritten, temp;
 	PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
@@ -114,11 +146,13 @@ DWORD nb_read_impl(char* buf, requestSingle request)
 		{
 			ReadFile(hComm, buf, bytesRead, &temp, NULL);
 			printPackage(buf, bytesRead, 1);
-			CRC_Check((byte*)buf, (int)bytesRead);
+			CRC_Check((byte*)buf, (int)bytesRead);  //make assert
 		}
 	}
-	return bytesRead;
+	assert(ModbussErrorCheck((byte*)buf, request.Slave_code[1]));
+	return TRUE;
 }
+
 //convert byte into digital value array
 int* readBinary(char* number, int response_lenght)
 {
@@ -149,7 +183,7 @@ int* readBinary(char* number, int response_lenght)
 int* readInt(char* buf, int response_lenght)   //Convert to INT 2 bytes
 {
 	int *intarray = (int*)malloc((response_lenght) / 2 * sizeof(int));
-	for (unsigned int i = 3, j = 0; j < (response_lenght) / 2; i += 2, j++)
+	for (int i = 3, j = 0; j < (response_lenght) / 2; i += 2, j++)
 	{
 		intarray[j] = ((byte)buf[i] << 8) | (byte)buf[i + 1];
 	}
@@ -186,7 +220,7 @@ double* readDouble(char* buf, int response_lenght) //Convert to  Double IEEE 754
 long* readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 bytes
 {
 	long* rdLng = (long*)malloc((response_lenght / 4) * sizeof(long));
-	for (unsigned int i = 3, j = 0; j < (response_lenght / 4); i += 4, j++) {
+	for (int i = 3, j = 0; j < (response_lenght / 4); i += 4, j++) {
 		rdLng[j] = ((byte)buf[i] << 24 | (byte)buf[i + 1] << 16 | (byte)buf[i + 2] << 8 | (byte)buf[i + 3]);
 	}
 	return rdLng;
@@ -201,29 +235,26 @@ bool ReadStatus(int function)       //0x01 - 0x02  Read D0 - D1
 	else
 		return false;
 
-	const int value = 37;             //debug info
-	int address = 19;           //real address - 1
+	const int value = 37;               //debug info
+	int address = 19;                   //real address - 1
 	int ID = 11;
 
-	struct Coil {                //store values
+	struct Coil {                       //store values
 		int Coil_value;
 		int address;
 	}Coli_1[value];
-
 	char buf[128] = { 0 };
-	DWORD bytesRead;
 	requestSingle request;
-
 	request_Read(&request, ID, function, address, value);
 
-
 	int* arr;
-	bytesRead = nb_read_impl(buf, request);
+	assert(nb_read_impl(buf, request));
 
 	int lenght = buf[2];
 	arr = readBinary(buf, lenght);
 	//coils
 	int i = 0;
+	int Newadd = (function == 1) ? (address + 1) : (address + 10001);
 	//debug info
 	printf("  address |   Value    \n"
 		"----------+----------\n");
@@ -232,7 +263,7 @@ bool ReadStatus(int function)       //0x01 - 0x02  Read D0 - D1
 		{
 			if (i < value)
 			{
-				Coli_1[i].address = (function == 1) ? (address + 1 + i) : (address + 10001 + i);
+				Coli_1[i].address = Newadd + i;
 				Coli_1[i].Coil_value = arr[j * 8 + k];
 				printf("%9d | %9d\n", Coli_1[i].address, Coli_1[i].Coil_value);
 				i++;
@@ -260,7 +291,6 @@ bool ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 
 	char buf[128] = { 0 };
 	requestSingle request;
-	DWORD bytesRead;
 	//select output mode -- integer
 	int* bus;
 	float* test;
@@ -268,7 +298,7 @@ bool ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 	double* rdDbl;
 
 	request_Read(&request, ID, function, address, value);
-	bytesRead = nb_read_impl(buf, request);
+	assert(nb_read_impl(buf, request));
 	int response_lenght = buf[2];
 
 	bus = readInt(buf, response_lenght);
@@ -276,30 +306,34 @@ bool ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 	rdLng = readLong(buf, response_lenght);
 	rdDbl = readDouble(buf, response_lenght);
 	//show result
+	int Newadd = (function == 3) ? (address + 40001) : (address + 30001);
 	printf("  address |   Value    \n"
 		"----------+----------\n");
 	//UINT16 - Big Endian (AB)
-	for (unsigned int j = 0; j < response_lenght / 2; j++)
+	for (int j = 0; j < response_lenght / 2; j++)
 	{
-		printf("%9d | %9d\n", (function == 3) ? (address + 40001 + j) : (address + 30001 + j), bus[j]);
+		printf("%9d | %9d\n", Newadd + j, bus[j]);
 	}
+	printf("----------+----------\n");
 	//Float - Little Endian (DCBA)
 	for (int i = 0; i < (response_lenght / 4); i++)
-		printf("\n%9d | %9.2f\n", (function == 3) ? (address + 40001 + i) : (address + 30001 + i), test[i]);
+		printf("\n%9d | %9.2f\n", Newadd + i, test[i]);
+	printf("----------+----------\n");
 	//Long - Big Endian (ABCD)
 	for (int i = 0, j = 0; j < (response_lenght / 4); i += 4, j++)
 	{
-		printf("\n%9d | %9lu\n", (function == 3) ? (address + 40001 + i) : (address + 30001 + i), rdLng[j]);
+		printf("\n%9d | %9lu\n", Newadd + i, rdLng[j]);
 	}
+	printf("----------+----------\n");
+	//Double
 	for (int i = 0; i < (response_lenght / 8); i++)
-		printf("\n%9d | %9f\n", (function == 3) ? (address + 40001 + i) : (address + 30001 + i), rdDbl[i]);
+		printf("\n%9d | %9f\n", Newadd + i, rdDbl[i]);
 	//Free memory
 	free(rdDbl);
 	free(rdLng);
 	free(bus);
 	free(test);
 	memset(buf, 0, sizeof(buf));
-
 	printf("\n*********end function**********\n");
 	return TRUE;
 }
@@ -346,21 +380,18 @@ bool OpenPort(/*int baudrate, int bytesize, int parity, int stopbits*/)
 
 int main()
 {
-	switch (OpenPort())
-	{
-	case TRUE:
+	if (!OpenPort()) {
+		printf("%s opening error\n", pcComPort);
+		return 0;
+	}
+	else {
 		assert(ReadStatus(1));
 		assert(ReadStatus(2));
 		assert(ReadRegisters(3));
 		assert(ReadRegisters(4));
-		break;
+	}
 
-	default:
-	{
-		printf("%s opening error\n", pcComPort);
-		break;
-	}
-	}
+
 	CloseHandle(hComm);
 	getchar();
 	return 0;
