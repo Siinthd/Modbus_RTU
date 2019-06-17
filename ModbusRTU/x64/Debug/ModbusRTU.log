@@ -1,3 +1,5 @@
 ﻿C:\Program Files (x86)\Microsoft Visual Studio\2017\Community\Common7\IDE\VC\VCTargets\Microsoft.CppBuild.targets(391,5): warning MSB8028: промежуточный каталог (x64\Debug\) содержит файлы, которые используются совместно с другим проектом (ModbusRTU.vcxproj).  Это может привести к ошибкам очистки и перестроения.
   Source.cpp
+c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.cpp(205): warning C4267: инициализация: преобразование из "size_t" в "int"; возможна потеря данных
+c:\users\kodolich_da\source\repos\siinthd\modbus_rtu\modbusrtu\source.cpp(253): warning C4715: convertUnionFromString: значение возвращается не при всех путях выполнения
   ModbusRTU.vcxproj -> C:\Users\kodolich_da\Source\Repos\Siinthd\Modbus_RTU\x64\Debug\ModbusRTU_synchronous.exe

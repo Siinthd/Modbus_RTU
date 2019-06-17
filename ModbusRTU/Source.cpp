@@ -1,7 +1,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <cstdlib>
+#include <stdlib.h>
 #include <math.h>
 #include <malloc.h>
 #include <assert.h>
@@ -61,7 +61,7 @@ bool CRC_Check(byte* buf, int bytesRead)
 {
 	unsigned int source;
 	unsigned int CRC = ModRTU_CRC(buf, bytesRead - 2);
-	source = (byte)buf[bytesRead - 1] << 8 | (byte)buf[bytesRead - 2];
+	source = (byte)buf[bytesRead - 1] | (byte)buf[bytesRead - 2] << 8;
 	if (source == CRC) {
 		printf("CRC check!\n");
 		return 1;
@@ -87,11 +87,35 @@ void request_Read(requestSingle* send, int ID, int function, int address, int va
 	//CRC
 	unsigned int CRC = ModRTU_CRC(send->Slave_code, 6); //2 байта
 
-	send->Slave_code[6] = CRC;
-	send->Slave_code[7] = CRC >> 8;
-
+	send->Slave_code[6] = CRC >> 8;
+	send->Slave_code[7] = CRC;
 }
+//collect a packet of any length,
+//but the last checksum values are ugly distributed
 
+int request_Write(byte* send, int ID, int function, int address, int bytes, int* value)
+{
+	//адрес устройства
+	send[0] = ID;
+	//функциональный код
+	send[1] = function;
+	//адрес первого регистра HI-Lo //2 байта
+	send[2] = address >> 8;
+	send[3] = address & 0x00ff;
+	send[4] = bytes * 2;
+	int i = 5;
+	//количество регистров Hi-Lo //2 байта
+	for (int k = 0; k < bytes; k++, i += 2)
+	{
+		send[i] = value[k] >> 8;
+		send[i + 1] = value[k] & 0x00ff;
+	}
+	//CRC
+	unsigned int CRC = ModRTU_CRC(send, i); //2 байта
+	send[i + 1] = CRC;
+	send[i] = CRC >> 8;
+	return i + 2;
+}
 
 bool ModbussErrorCheck(byte* buffer, byte function)
 {
@@ -122,7 +146,8 @@ bool ModbussErrorCheck(byte* buffer, byte function)
 	}
 	return TRUE;
 }
-
+//overload to send "structure of bytes",but have a issue with amount of bytes to send
+//more convenient than with a simple array, do not count the number of bytes in advance
 bool nb_read_impl(char* buf, requestSingle request)
 {
 	DWORD bytesRead, dwEventMask, bytesWritten, temp;
@@ -148,7 +173,84 @@ bool nb_read_impl(char* buf, requestSingle request)
 	assert(ModbussErrorCheck((byte*)buf, request.Slave_code[1]));
 	return TRUE;
 }
+//overload to send "byte array",but have a issue with amount of bytes to send
+bool nb_read_impl(char* buf, byte* request, int bytes)
+{
+	DWORD bytesRead, dwEventMask, bytesWritten, temp;
+	PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
+	//test loop
+	if (!WriteFile(hComm, request, bytes, &bytesWritten, NULL)) {
+		perror("error: ");
+		return FALSE;
+	}
+	printPackage((char*)request, bytesWritten, 0);
+	SetCommMask(hComm, EV_RXCHAR);
+	WaitCommEvent(hComm, &dwEventMask, NULL);
+	Sleep(50);
+	if ((dwEventMask & EV_RXCHAR) != 0) {
+		ClearCommError(hComm, NULL, &comstat);
+		bytesRead = comstat.cbInQue;
+		if (bytesRead) {
+			ReadFile(hComm, buf, bytesRead, &temp, NULL);
+			printPackage(buf, bytesRead, 1);
+			CRC_Check((byte*)buf, (int)bytesRead);  //make assert
+		}
+	}
+	assert(ModbussErrorCheck((byte*)buf, request[1]));
+	return TRUE;
+}
+//parsing input string to array,mode 1 - discrete values;0 - analog values
+int* convertUnionFromString(char* str, int mode, int* amount)
+{
+	int str_length = strlen(str);
 
+	int *arr = (int*)malloc(str_length * sizeof(int));
+	memset(arr, 0, str_length * (sizeof arr[0]));
+
+	int *result = (int*)malloc(10 * sizeof(int));
+	memset(result, 0, 10 * (sizeof result[0]));
+
+	int c = sizeof(char) * 8 - 1;
+	int j = 0, i, k = 0;
+	// Traverse the string
+	for (i = 0; str[i] != '\0'; i++) {
+		// if str[i] is ', ' then split
+		if (str[i] == ',') {
+			j++;
+		}
+		else {
+			arr[j] = arr[j] * 10 + (str[i] - 48);
+			if (mode)
+			{
+				switch (str[i])
+				{
+				case 49:
+					result[k] |= 1 << c;
+					c--;
+					break;
+				case 48:
+					c--;
+					break;
+				}
+				if (c < 0)
+				{
+					c = sizeof(char) * 8 - 1;
+					k++;
+				}
+			}
+		}
+	}
+	if (!mode)
+	{
+		*amount = j + 1;
+		return arr;
+	}
+	if (mode)
+	{
+		*amount = (j / 8) + 1;
+		return result;
+	}
+}
 //convert byte into digital value array
 int* readBinary(char* number, int response_lenght)
 {
@@ -329,7 +431,6 @@ bool ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 	return TRUE;
 }
 
-
 bool WriteRegisters(int function)      //0x05-0x06 write D0 -A0
 {
 	if (function == 5)
@@ -360,6 +461,38 @@ bool WriteRegisters(int function)      //0x05-0x06 write D0 -A0
 		return false;
 	}
 	printf("\nCluster %d set to %d.\n", address + 1, value);
+	printf("\n*********end function**********\n");
+	return TRUE;
+}
+
+bool ForceMuiltipleReg(int function)    //0x0F-0x10 Write multiple D&A
+{
+	char buf[128] = { 0 };
+	byte data[100];
+	int* to_write;                  //Parcing string to array of int
+	int parcel;                    //amount bytes to packet
+	int bytestowrt;                //amount of sending bytes
+
+	char str[] = "1,0,0,1,0,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,0,0,1,0,1,0,1,0,1,0,1";
+	char str2[] = "255,38655,20050,11005,50001,13";
+	//may be?
+	switch (function)
+	{
+	case 0X0F:
+		printf("\n*********Force multiple Registers**********\n");
+		to_write = convertUnionFromString(str, 1, &parcel);
+		bytestowrt = request_Write(data, 1, 0x0F, 255, parcel, to_write);
+		assert(nb_read_impl(buf, data, bytestowrt));
+		break;
+	case 0X10:
+		printf("\n*********Preset multiple Registers**********\n");
+		to_write = convertUnionFromString(str2, 0, &parcel);
+		bytestowrt = request_Write(data, 1, 0x10, 255, parcel, to_write);
+		assert(nb_read_impl(buf, data, bytestowrt));
+		break;
+	default:
+		return FALSE;
+	}
 	printf("\n*********end function**********\n");
 	return TRUE;
 }
@@ -417,6 +550,8 @@ int main()
 		assert(ReadRegisters(4));
 		assert(WriteRegisters(5));
 		assert(WriteRegisters(6));
+		assert(ForceMuiltipleReg(0X0F));
+		assert(ForceMuiltipleReg(0X10));
 	}
 
 
