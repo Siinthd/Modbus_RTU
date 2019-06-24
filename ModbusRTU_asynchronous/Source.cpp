@@ -8,7 +8,7 @@ HANDLE hSerial;
 COMSTAT comstat;
 OVERLAPPED overlapped;
 OVERLAPPED overlappedwr;
-#define WAIT_COM 7000
+#define WAIT_COM 15000
 
 void initializeCom(char *str)
 {
@@ -39,7 +39,7 @@ int ReadCOM() {
 
 	DWORD btr, temp, mask, signal;
 	bool event = false;
-	char sReceivedChar;
+	char sReceivedChar[255] = { 0 };
 
 	overlapped.hEvent = CreateEvent(NULL, true, true, NULL);  //creat event and mask
 	SetCommMask(hSerial, EV_RXCHAR);
@@ -101,4 +101,13 @@ void WriteCom(char number)
 void ClosePort()
 {
 	CloseHandle(hSerial);
+}
+
+int main(void)
+{
+	char str1[15] = "\\\\.\\COM15";
+	initializeCom(str1);
+	WriteCom(5);
+	ReadCOM();
+	getchar();
 }

@@ -481,7 +481,7 @@ bool ForceMuiltipleReg(int function)    //0x0F-0x10 Write multiple D&A
 	case 0X0F:
 		printf("\n*********Force multiple Registers**********\n");
 		to_write = convertUnionFromString(str, 1, &parcel);
-		bytestowrt = request_Write(data, 1, 0x0F, 255, parcel, to_write);
+		bytestowrt = request_Write(data, 1, 0x0F, 100, parcel, to_write);
 		assert(nb_read_impl(buf, data, bytestowrt));
 		break;
 	case 0X10:
@@ -544,13 +544,13 @@ int main()
 		return 0;
 	}
 	else {
-		assert(ReadStatus(1));
-		assert(ReadStatus(2));
-		assert(ReadRegisters(3));
-		assert(ReadRegisters(4));
-		assert(WriteRegisters(5));
-		assert(WriteRegisters(6));
-		assert(ForceMuiltipleReg(0X0F));
+		//assert(ReadStatus(1));
+		//assert(ReadStatus(2));
+		//assert(ReadRegisters(3));
+		//assert(ReadRegisters(4));
+		//assert(WriteRegisters(5));
+		//assert(WriteRegisters(6));
+		//assert(ForceMuiltipleReg(0X0F));
 		assert(ForceMuiltipleReg(0X10));
 	}
 
@@ -559,3 +559,4 @@ int main()
 	getchar();
 	return 0;
 }
+
