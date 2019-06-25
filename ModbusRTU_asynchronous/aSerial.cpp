@@ -28,7 +28,7 @@ aSerial::aSerial(char* str)
 
 	if (!GetCommTimeouts(hSerial, &timeouts))
 	{
-		printf("GetCommState error\n");
+		cout<<"GetCommState error\n"<<endl;
 		system("pause");
 		exit(0);
 	}
