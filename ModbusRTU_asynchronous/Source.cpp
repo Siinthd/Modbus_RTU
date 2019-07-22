@@ -1,5 +1,5 @@
 
-#include "aSerial.h"
+#include "Modbus.h"
 
 int main()
 {
@@ -9,9 +9,6 @@ int main()
 	strncat_s(str1, num, 2);
 	char str2[] = "666";
 
-	aSerial Comport(str1);
-	Comport.send(str2);
-	Comport.recieve();
 
 	system("pause");
 	return 0;
