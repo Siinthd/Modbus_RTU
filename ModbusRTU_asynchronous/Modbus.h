@@ -22,21 +22,27 @@ public:
 	Modbus(char* str);
 	~Modbus();
 
+	void printPackage(requestSingle, int, int);
+	void printPackage(char data[], int, int);
 
-	template <typename T>
-	void printPackage(T* data, int size, int isin);
+	void request_Read(int ID, int function, int address, int value);
 
-	template <typename T>
+	int request_Write(byte * send, int ID, int function, int address, int bytes, int * value);
+
+	int * readInt(char * buf, int response_lenght);
+
 	bool nb_read_impl();
 
 	bool send();
 	bool recieve();
 	void close();
 	bool ModbussErrorCheck(byte * buffer, byte function);
+
+	bool ReadRegisters(int function);
+
+	bool WriteRegisters(int function);
+
 	
-	bool ReadRegisters();
-	bool WriteRegisters();
-	bool ForceMuiltipleReg();
 
 	uint16_t ModRTU_CRC(byte * buf, int len);
 
