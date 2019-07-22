@@ -27,10 +27,10 @@ public:
 	void printPackage(T* data, int size, int isin);
 
 	template <typename T>
-	bool nb_read_impl(char * buf, T request);
+	bool nb_read_impl();
 
-	void send(requestSingle);
-	void recieve();
+	bool send();
+	bool recieve();
 	void close();
 	bool ModbussErrorCheck(byte * buffer, byte function);
 	
@@ -46,10 +46,15 @@ public:
 private:
 	DCB dcb;
 	HANDLE hSerial;
+	DWORD btr, temp, mask, signal;
+	DWORD bytesRead, dwEventMask;
+	DWORD dwBytesWritten; // amount written bytes 
 	COMSTAT comstat;
 	COMMTIMEOUTS timeouts;
 	OVERLAPPED overlapped;
 	OVERLAPPED overlappedwr;
+	requestSingle pack;
+	char sReceivedChar[255];
 
 
 };

@@ -107,26 +107,24 @@ void Modbus::close()
 }
 
 
-void Modbus::send(requestSingle request)
+bool Modbus::send()
 {
-	bool fl; //writing flag
 	overlappedwr.hEvent = CreateEvent(NULL, true, true, NULL);
-	DWORD signal;
-	DWORD dwBytesWritten; // amount written bytes 
-	BOOL iRet = WriteFile(hSerial, &request, sizeof(request), &dwBytesWritten, &overlappedwr);
+	BOOL iRet = WriteFile(hSerial, &pack, sizeof(pack), &dwBytesWritten, &overlappedwr);
 
 	signal = WaitForSingleObject(overlappedwr.hEvent, INFINITE);	//pause stream, while begin WriteFile
 																	//if success, set fl to '1'
-	if ((signal == WAIT_OBJECT_0) && (GetOverlappedResult(hSerial, &overlappedwr, &dwBytesWritten, true))) fl = true;
-	else fl = false;
+	if ((signal == WAIT_OBJECT_0) && (GetOverlappedResult(hSerial, &overlappedwr, &dwBytesWritten, true))) 
+		return true;
+	else 
+		return false;
 }
 
-
-void Modbus::recieve()
+bool Modbus::recieve()
 {
-	DWORD btr, temp, mask, signal;
+	
 	bool event = false;
-	char sReceivedChar[255] = { 0 };
+	memset(sReceivedChar, 0, 255 * (sizeof sReceivedChar[0]));
 
 	overlapped.hEvent = CreateEvent(NULL, true, true, NULL);  //creat event and mask
 	SetCommMask(hSerial, EV_RXCHAR);
@@ -142,10 +140,10 @@ void Modbus::recieve()
 				if ((mask&EV_RXCHAR) != 0)
 				{
 					ClearCommError(hSerial, &temp, &comstat);			//fill Comsat
-					btr = comstat.cbInQue;
-					if (btr)
+					bytesRead = comstat.cbInQue;
+					if (bytesRead)
 					{
-						ReadFile(hSerial, &sReceivedChar, btr, &temp, &overlapped); // get 1 byte
+						ReadFile(hSerial, &sReceivedChar, bytesRead, &temp, &overlapped); // get  byte
 						if (temp > 0)
 						{
 							cout << "bytes: " << temp << endl;
@@ -163,29 +161,26 @@ void Modbus::recieve()
 		}
 	}
 	CloseHandle(overlapped.hEvent);
+	return 1;
 }
 
-
 template <typename T>
-bool Modbus::nb_read_impl(char* buf, T request)
+bool Modbus::nb_read_impl()
 {
-	DWORD bytesRead, dwEventMask, bytesWritten, temp;
+	
 	PurgeComm(hSerial, PURGE_RXCLEAR | PURGE_TXCLEAR);
 	//test loop
-	if (!WriteFile(hSerial, &request, sizeof(request), &bytesWritten, NULL)) {
+	if (!send()) {
 		perror("error: ");
 		return FALSE;
 	}
-	printPackage(&request, bytesWritten, 0);
-	send(request);
+	printPackage(this->pack, dwBytesWritten, 0);
 
-
-	if (bytesRead) {
-		recieve();
-		printPackage(buf, bytesRead, 1);
-		CRC_Check((byte*)buf, (int)bytesRead);  //make assert
+	if (recieve()) {
+		printPackage(this->sReceivedChar, bytesRead, 1);
+		CRC_Check((byte*)sReceivedChar, (int)bytesRead);  //make assert
 	}
-	ModbussErrorCheck((byte*)buf, request.Slave_code[1]);
+	ModbussErrorCheck((byte*)sReceivedChar, this->pack.Slave_code[1]);
 
 	return TRUE;
 }
