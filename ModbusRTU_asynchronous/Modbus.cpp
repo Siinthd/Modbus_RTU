@@ -6,6 +6,8 @@ Modbus::Modbus(char* str)
 {
 	LPCTSTR sPortName = str;
 
+	memset(sReceivedChar, 0, 255 * (sizeof sReceivedChar[0]));
+
 	hSerial = CreateFile(sPortName, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 
 	dcb.DCBlength = sizeof(DCB);
@@ -31,6 +33,7 @@ Modbus::Modbus(char* str)
 		system("pause");
 		exit(0);
 	}
+																							//to fix problems with timeouts
 	double dblBitsPerByte = 1 + dcb.ByteSize + dcb.StopBits + (dcb.Parity ? 1 : 0);
 	timeouts.ReadIntervalTimeout = (DWORD)ceil((3.5f*dblBitsPerByte / (double)dcb.BaudRate * 1000.0f));
 	timeouts.ReadTotalTimeoutMultiplier = 10;
@@ -108,7 +111,6 @@ bool Modbus::recieve()
 {
 	
 	bool event = false;
-	memset(sReceivedChar, 0, 255 * (sizeof sReceivedChar[0]));
 
 	overlapped.hEvent = CreateEvent(NULL, true, true, NULL);  //creat event and mask
 	SetCommMask(hSerial, EV_RXCHAR);
@@ -147,7 +149,6 @@ bool Modbus::recieve()
 	CloseHandle(overlapped.hEvent);
 	return 1;
 }
-
 
 bool Modbus::nb_read_impl()
 {
@@ -217,52 +218,47 @@ bool Modbus::ReadRegisters(int function)      //0x03-0x04 read A0 -A1
 
 	
 	//select output mode
-	int* bus;
-	float* test;
-	long* rdLng;
-	double* rdDbl;
+
 
 	request_Read(ID, function, address, value);
 	
 	if (nb_read_impl())
 		int response_lenght = sReceivedChar[2];
 
-	bus = readInt(buf, response_lenght);
-	test = readInverseFloat(buf, response_lenght);  // responce_lenght possible vulnerability
-	rdLng = readLong(buf, response_lenght);
-	rdDbl = readDouble(buf, response_lenght);
+	bus = readInt(sReceivedChar, bytesRead);
+	test = readInverseFloat(sReceivedChar, bytesRead);  // responce_lenght possible vulnerability
+	rdLng = readLong(sReceivedChar, bytesRead);
+	rdDbl = readDouble(sReceivedChar, bytesRead);
 	//show result
 	int Newadd = (function == 3) ? (address + 40001) : (address + 30001);
 	printf("  address |   Value    \n"
 		"----------+----------\n");
 	//UINT16 - Big Endian (AB)
-	for (int j = 0; j < response_lenght / 2; j++) {
+	for (int j = 0; j < bytesRead / 2; j++) {
 		printf("%9d | %9d\n", Newadd + j, bus[j]);
 	}
 	printf("----------+----------\n");
 	//Float - Little Endian (DCBA)
-	for (int i = 0; i < (response_lenght / 4); i++)
+	for (int i = 0; i < (bytesRead / 4); i++)
 		printf("\n%9d | %9.2f\n", Newadd + i, test[i]);
 	printf("----------+----------\n");
 	//Long - Big Endian (ABCD)
-	for (int i = 0, j = 0; j < (response_lenght / 4); i += 4, j++) {
+	for (int i = 0, j = 0; j < (bytesRead / 4); i += 4, j++) {
 		printf("\n%9d | %9lu\n", Newadd + i, rdLng[j]);
 	}
 	printf("----------+----------\n");
 	//Double
-	for (int i = 0; i < (response_lenght / 8); i++)
+	for (int i = 0; i < (bytesRead / 8); i++)
 		printf("\n%9d | %9f\n", Newadd + i, rdDbl[i]);
 	//Free memory
 	free(rdDbl);
 	free(rdLng);
 	free(bus);
 	free(test);
-	memset(buf, 0, sizeof(buf));
+	memset(sReceivedChar, 0, sizeof(sReceivedChar));
 	printf("\n*********end function**********\n");
 	return TRUE;
 }
-
-
 
 bool Modbus::WriteRegisters(int function)      //0x05-0x06 write D0 -A0
 {
@@ -296,8 +292,6 @@ bool Modbus::WriteRegisters(int function)      //0x05-0x06 write D0 -A0
 	return TRUE;
 }
 
-
-
 void Modbus::printPackage(requestSingle data, int size, int isin)
 {
 	printf("%s bytes: %d\n\r\t", (isin) ? "Received" : "Sent", size);
@@ -313,7 +307,6 @@ void Modbus::printPackage(char data[], int size, int isin)
 		printf("%02X ", (byte)data[i]);
 	printf("\n\r");
 }
-
 
 void Modbus::request_Read(int ID, int function, int address, int value)
 {
@@ -334,30 +327,6 @@ void Modbus::request_Read(int ID, int function, int address, int value)
 	pack.Slave_code[7] = CRC;
 }
 
-int Modbus::request_Write(byte* send, int ID, int function, int address, int bytes, int* value)
-{
-	//адрес устройства
-	send[0] = ID;
-	//функциональный код
-	send[1] = function;
-	//адрес первого регистра HI-Lo //2 байта
-	send[2] = address >> 8;
-	send[3] = address & 0x00ff;
-	send[4] = bytes * 2;
-	int i = 5;
-	//количество регистров Hi-Lo //2 байта
-	for (int k = 0; k < bytes; k++, i += 2)
-	{
-		send[i] = value[k] >> 8;
-		send[i + 1] = value[k] & 0x00ff;
-	}
-	//CRC
-	unsigned int CRC = ModRTU_CRC(send, i); //2 байта
-	send[i + 1] = CRC;
-	send[i] = CRC >> 8;
-	return i + 2;
-}
-
 int* Modbus::readInt(char* buf, int response_lenght)   //Convert to INT 2 bytes
 {
 	int *intarray = (int*)malloc((response_lenght) / 2 * sizeof(int));
@@ -366,4 +335,40 @@ int* Modbus::readInt(char* buf, int response_lenght)   //Convert to INT 2 bytes
 		intarray[j] = ((byte)buf[i] << 8) | (byte)buf[i + 1];
 	}
 	return intarray;
+}
+
+float* Modbus::readInverseFloat(char* buf, int response_lenght)  //Convert to Float IEEE 754 4 bytes
+{
+	float *farray = (float*)malloc((response_lenght / 4) * sizeof(float));
+	BYTE ui[4];
+	for (int i = 3, j = 0; j < (response_lenght / 4); i += 4, j++)
+	{
+		ui[0] = buf[i];
+		ui[1] = buf[i + 1];
+		ui[2] = buf[i + 2];
+		ui[3] = buf[i + 3];
+		memcpy(&farray[j], ui, 4);
+	}
+	return farray;
+}
+
+double* Modbus::readDouble(char* buf, int response_lenght) //Convert to  Double IEEE 754 8 bytes
+{
+	BYTE ul[8];
+	double* rdDbl = (double*)malloc((response_lenght / 8) * sizeof(double));
+	for (int i = 3, j = 0; j < (response_lenght / 8); i += 8, j++) { //Convert to double
+		for (int k = 7; k >= 0; k--)
+			ul[k] = buf[i + k];
+		memcpy(&rdDbl[j], ul, 8);
+	}
+	return rdDbl;
+}
+
+long* Modbus::readLong(char* buf, int response_lenght) //Convert to long IEEE 754 4 bytes
+{
+	long* rdLng = (long*)malloc((response_lenght / 4) * sizeof(long));
+	for (int i = 3, j = 0; j < (response_lenght / 4); i += 4, j++) {
+		rdLng[j] = ((byte)buf[i] << 24 | (byte)buf[i + 1] << 16 | (byte)buf[i + 2] << 8 | (byte)buf[i + 3]);
+	}
+	return rdLng;
 }

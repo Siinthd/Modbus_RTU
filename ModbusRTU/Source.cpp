@@ -150,7 +150,8 @@ bool ModbussErrorCheck(byte* buffer, byte function)
 //more convenient than with a simple array, do not count the number of bytes in advance
 bool nb_read_impl(char* buf, requestSingle request)
 {
-	DWORD bytesRead, dwEventMask, bytesWritten, temp;
+	DWORD bytesRead, dwEventMask, bytesWritten, dwErrorFlags, temp;
+	long waited = 0;
 	PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
 	//test loop
 	if (!WriteFile(hComm, &request, sizeof(request), &bytesWritten, NULL)) {
@@ -158,44 +159,61 @@ bool nb_read_impl(char* buf, requestSingle request)
 		return FALSE;
 	}
 	printPackage(&request, bytesWritten, 0);
-	SetCommMask(hComm, EV_RXCHAR);
-	WaitCommEvent(hComm, &dwEventMask, NULL);
-	Sleep(50);
-	if ((dwEventMask & EV_RXCHAR) != 0) {
+
 		ClearCommError(hComm, NULL, &comstat);
+
+		while (comstat.cbInQue == 0) {
+			printf( "waiting for data for  %d ms\n",waited);
+			Sleep(1000);
+			waited += 1000;
+			ClearCommError(hComm, &dwErrorFlags, &comstat);
+			if (waited >= 10000) {
+				printf("timeout while reading data");
+				return false;
+			}
+		}
+
 		bytesRead = comstat.cbInQue;
 		if (bytesRead) {
 			ReadFile(hComm, buf, bytesRead, &temp, NULL);
 			printPackage(buf, bytesRead, 1);
 			CRC_Check((byte*)buf, (int)bytesRead);  //make assert
 		}
-	}
 	assert(ModbussErrorCheck((byte*)buf, request.Slave_code[1]));
 	return TRUE;
 }
+
 //overload to send "byte array",but have a issue with amount of bytes to send
 bool nb_read_impl(char* buf, byte* request, int bytes)
 {
-	DWORD bytesRead, dwEventMask, bytesWritten, temp;
+	DWORD bytesRead, dwEventMask, bytesWritten, dwErrorFlags, temp;
+	long waited = 0;
 	PurgeComm(hComm, PURGE_RXCLEAR | PURGE_TXCLEAR);
-	//test loop
+
 	if (!WriteFile(hComm, request, bytes, &bytesWritten, NULL)) {
 		perror("error: ");
 		return FALSE;
 	}
 	printPackage((char*)request, bytesWritten, 0);
-	SetCommMask(hComm, EV_RXCHAR);
-	WaitCommEvent(hComm, &dwEventMask, NULL);
-	Sleep(50);
-	if ((dwEventMask & EV_RXCHAR) != 0) {
+
 		ClearCommError(hComm, NULL, &comstat);
+		while (comstat.cbInQue == 0) {
+			printf("waiting for data for  %d ms\n", waited);
+			Sleep(1000);
+			waited += 1000;
+			ClearCommError(hComm, &dwErrorFlags, &comstat);
+			if (waited >= 10000) {
+				printf("timeout while reading data");
+				return false;
+			}
+		}
+
 		bytesRead = comstat.cbInQue;
 		if (bytesRead) {
 			ReadFile(hComm, buf, bytesRead, &temp, NULL);
 			printPackage(buf, bytesRead, 1);
 			CRC_Check((byte*)buf, (int)bytesRead);  //make assert
 		}
-	}
 	assert(ModbussErrorCheck((byte*)buf, request[1]));
 	return TRUE;
 }
@@ -547,11 +565,11 @@ int main()
 		//assert(ReadStatus(1));
 		//assert(ReadStatus(2));
 		//assert(ReadRegisters(3));
-		//assert(ReadRegisters(4));
+		assert(ReadRegisters(4));
 		//assert(WriteRegisters(5));
 		//assert(WriteRegisters(6));
 		//assert(ForceMuiltipleReg(0X0F));
-		assert(ForceMuiltipleReg(0X10));
+		//assert(ForceMuiltipleReg(0X10));
 	}
 
 

@@ -20,29 +20,36 @@ public:
 	};
 
 	Modbus(char* str);
+
 	~Modbus();
 
 	void printPackage(requestSingle, int, int);
+
 	void printPackage(char data[], int, int);
 
 	void request_Read(int ID, int function, int address, int value);
 
-	int request_Write(byte * send, int ID, int function, int address, int bytes, int * value);
-
 	int * readInt(char * buf, int response_lenght);
+
+	float * readInverseFloat(char * buf, int response_lenght);
+
+	double * readDouble(char * buf, int response_lenght);
+
+	long * readLong(char * buf, int response_lenght);
 
 	bool nb_read_impl();
 
 	bool send();
+
 	bool recieve();
+
 	void close();
+
 	bool ModbussErrorCheck(byte * buffer, byte function);
 
 	bool ReadRegisters(int function);
 
 	bool WriteRegisters(int function);
-
-	
 
 	uint16_t ModRTU_CRC(byte * buf, int len);
 
@@ -61,6 +68,12 @@ private:
 	OVERLAPPED overlappedwr;
 	requestSingle pack;
 	char sReceivedChar[255];
+
+
+	int* bus;
+	float* test;
+	long* rdLng;
+	double* rdDbl;
 
 
 };
